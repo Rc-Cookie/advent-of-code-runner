@@ -35,13 +35,10 @@ You also need to add the repository used to distribute it:
 ## Configuration
 
 To be able to function properly, a `config.json` file should be present in the working directory
-of the program. Alternatively, a config file can be passed to the program with the
-`--config` option. The config file should contain the following fields:
+of the program, and file `token.txt` unless otherwise specified in the config file. Alternatively,
+a config file can be passed to the program with the `--config` option. The config file should contain
+the following fields:
 
- - `"token"`: The session token used to authenticate on adventofcode.com. This token
-   can be found by logging in on the website and then opening the browser devtools.
-   In the category "storage" you can see the cookies of the website, which should
-   include the "session" cookie.
  - `"classPattern"`: The fully qualified name pattern of your solution classes
    that you want to use. The name can include `{day}`, `{0_day}`, `{year}` and `{full_year}`,
    which will be replaced with the day of month, day of month padded with 0 if needed,
@@ -49,6 +46,11 @@ of the program. Alternatively, a config file can be passed to the program with t
    will be used to find and initiate an instance of your solution class for a specific
    puzzle. For example, the pattern `"de.rccookie.aoc._{year}.Solution{day}"` would match
    the class `de.rccookie.aoc._23.Solution24`, if the date was the 24th december 2023.
+ - Optional: `"token"`: The file that contains the session token used to authenticate 
+   on adventofcode.com. This token can be found by logging in on the website and then
+   opening the browser devtools. In the category "storage" you can see the cookies of
+   the website, which should include the `"session"` cookie. The default value of this
+   is `"token.txt"`.
  - Optionally: `"showInputStats"`: Boolean, which can be used to control whether to
    print a short input summary at the beginning of execution. Enabled by default.
 

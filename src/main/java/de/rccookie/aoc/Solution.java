@@ -17,6 +17,7 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.function.ToLongFunction;
 
+import com.diogonunes.jcolor.Attribute;
 import de.rccookie.http.ContentType;
 import de.rccookie.http.HttpRequest;
 import de.rccookie.json.Default;
@@ -28,8 +29,8 @@ import de.rccookie.util.Options;
 import de.rccookie.util.Stopwatch;
 import de.rccookie.util.Utils;
 import de.rccookie.util.Wrapper;
-import de.rccookie.xml.Node;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Range;
 
 /**
  * A base class for classes that implement a solution for a day of Advent of Code,
@@ -44,10 +45,6 @@ import org.jetbrains.annotations.NotNull;
  * of the program. Alternatively, a config file can be passed to the program with the
  * "--config" option. The config file should contain the following fields:</p>
  * <ul>
- *     <li>"token": The session token used to authenticate on adventofcode.com. This token
- *     can be found by logging in on the website and then opening the browser devtools.
- *     In the category "storage" you can see the cookies of the website, which should
- *     include the "session" cookie.</li>
  *     <li>"classPattern": The fully qualified name pattern of your solution classes
  *     that you want to use. The name can include {day}, {0_day}, {year} and {full_year},
  *     which will be replaced with the day of month, day of month padded with 0 if needed,
@@ -55,15 +52,21 @@ import org.jetbrains.annotations.NotNull;
  *     will be used to find and initiate an instance of your solution class for a specific
  *     puzzle. For example, the pattern "de.rccookie.aoc._{year}.Solution{day}" would match
  *     the class de.rccookie.aoc._23.Solution24, if the date was the 24th december 2023.</li>
+ *     <li>Optional: "token": The file that contains the session token used to authenticate
+ *     on adventofcode.com. This token can be found by logging in on the website and then
+ *     opening the browser devtools. In the category "storage" you can see the cookies of
+ *     the website, which should include the "session" cookie. The default value of this is
+ *     "token.txt".</li>
  *     <li>Optional: "showInputStats": Boolean, which can be used to control whether to
  *     print a short input summary at the beginning of execution. Enabled by default.</li>
  * </ul>
  *
  * Implementations of this class must provide a parameter-less constructor, such that an
  * instance of the class can be created on demand.
+ *
+ * @author RcCookie
  */
 public abstract class Solution {
-
 
     /**
      * The raw input string.
@@ -188,6 +191,10 @@ public abstract class Solution {
      */
     private static String run(Class<? extends Solution> type, int task, int day, int year, String token, boolean inputStats) throws InvalidInputException {
 
+        // Validate token syntax
+        if(token.length() != 128)
+            throw new InvalidInputException("Invalid token, expected 128 characters");
+
         // Get date of puzzle if not already given
         if(day <= 0)
             day = Calendar.getInstance().get(Calendar.DAY_OF_MONTH);
@@ -210,31 +217,33 @@ public abstract class Solution {
             throw new AssertionError();
         }
 
-        // Test in the background how many parts of this puzzle were already solved
+        // In the background, find which parts of the puzzle were already solved and get their solutions
+        Wrapper<String[]> solutions = new Wrapper<>(null);
         int _day = day, _year = year;
-        Wrapper<Integer> possibleAnswer = new Wrapper<>(null);
         new Thread(() -> {
-            Node success = HttpRequest.get("https://adventofcode.com/"+_year+"/day/"+_day)
-                .addCookie("session", token)
-                .send().xml().getElements().filter(n -> {
-                    String cs = n.attribute("class");
-                    return cs != null && cs.contains("day-success");
-                }).findFirst().orElse(null);
-                int possible;
-                if(success == null)
-                    possible = 1;
-                else if(!success.text().toLowerCase().contains("both"))
-                    possible = 2;
-                else possible = -1;
-                synchronized(possibleAnswer) {
-                    possibleAnswer.value = possible;
-                    possibleAnswer.notifyAll();
-                }
-        }).start();
+            String[] s = getSolutions(_day, _year, token);
+            synchronized(solutions) {
+                solutions.value = s;
+                solutions.notifyAll();
+            }
+        }, "Solution fetcher").start();
 
         // Read input file or fetch from website and store
+        Path userFile = Path.of("input", year+"", "user");
         Path inputFile = Path.of("input", year+"", day+".txt");
         try {
+            // Keep a file with the session token in the directory of the input files. If the
+            // token changes, we have to reload the input files as the user may have changed.
+            if(Files.exists(userFile) && !Files.readString(userFile).trim().equals(token)) {
+                // Delete all files in directory
+                try(var files = Files.list(userFile.resolve(".."))) {
+                    for(Path file : Utils.iterate(files.filter(Files::isRegularFile)))
+                        Files.delete(file);
+                }
+            }
+            Files.writeString(userFile, token);
+
+            // Does the input cache (still) exist?
             if(Files.exists(inputFile))
                 solution.input = Files.readString(inputFile);
             else {
@@ -244,7 +253,7 @@ public abstract class Solution {
                         .send().text();
                 if(solution.input.startsWith("Puzzle inputs differ per user"))
                     throw new InvalidInputException("Invalid token, cannot receive input data");
-                // Store the input so we don't have to load it every time
+                // Store the input, so we don't have to load it every time
                 Files.createDirectories(inputFile.resolve(".."));
                 Files.writeString(inputFile, solution.input);
             }
@@ -302,28 +311,37 @@ public abstract class Solution {
 
         // Print results
         String result = Objects.toString(resultObj);
-        Console.map("Result", result);
+        Console.map("Result", Console.colored(result, Attribute.BOLD()));
         Console.map("Duration", watch.getPassedNanos() / 1000000.0 + "ms");
         if(resultObj == null || result.isBlank())
             // null or blank string won't be the solution, so just exit
             return resultObj == null ? null : result;
 
         // Wait until we know which tasks are already done
-        synchronized(possibleAnswer) {
-            while(possibleAnswer.value == null) try {
-                possibleAnswer.wait();
+        synchronized(solutions) {
+            while(solutions.value == null) try {
+                solutions.wait();
             } catch(InterruptedException e) {
                 throw Utils.rethrow(e);
             }
         }
 
-        if(possibleAnswer.value != task) {
-            if(possibleAnswer.value == 1) {
-                // Trying to submit solution for task 2, but hasn't solved task 1 yet.
-                // We can just run task 1 instead.
-                Console.log("Cannot submit second solution before first.");
-                if(Console.input("Execute task 1 instead? >").isBlank())
-                    return run(type, 1, day, year, token, false);
+        if(solutions.value.length != task - 1) {
+            if(solutions.value.length == 0) {
+                // Trying to submit solution for a later subtask, but hasn't solved a previous subtask yet.
+                // We can just run the other task instead.
+                int todo = solutions.value.length + 1;
+                Console.log("Cannot submit solution for task {} before task {} is completed.", task, todo);
+                if(Console.input("Execute task {} instead? >", todo).isBlank())
+                    return run(type, todo, day, year, token, false);
+            }
+            else {
+                // The correct answer has already been submitted, now we can compare
+                // ourselves with the correct answer
+                if(solutions.value[task-1].equals(result))
+                    Console.log("That is the correct answer!");
+                else Console.log("That is not the correct answer, the expected answer is {}.", Console.colored(solutions.value[task-1], Attribute.ITALIC()));
+                Console.log("(You have already solved this puzzle before)");
             }
             return result;
         }
@@ -334,14 +352,9 @@ public abstract class Solution {
 
         // Send the data, which gets HTML as response
         Console.log("Submitting answer...");
-        String info = HttpRequest.post("https://adventofcode.com/"+year+"/day/"+day+"/answer")
-                .addCookie("session", token)
-                .setContentType(ContentType.URL_ENCODED)
-                .setData("level="+task+"&answer="+URLEncoder.encode(result, StandardCharsets.UTF_8)) // Yes, the data is sent in the body as URL encoded
-                .send()
-                .xml()
-                .getElementByTag("article")
-                .text();
+        String info = submit(day, year, task, token, result);
+        if(info.length() > 1000)
+            throw new InvalidInputException("Invalid session token");
 
         // Filter out readable text and put the first sentence on an extra line
         info = info.substring(0, info.contains(day+"!") ? info.indexOf(day+"!") + (day+"!").length() : info.indexOf("[") - 1)
@@ -396,6 +409,50 @@ public abstract class Solution {
     }
 
     /**
+     * Fetches the solutions to the puzzle which have already been revealed (because the user
+     * has already solved them). The returned array has one element per solved puzzle part. If
+     * nothing has been solved yet, or the puzzle is not yet unlocked, an empty array will be
+     * returned.
+     *
+     * @param day The day of the puzzle to get the solutions for
+     * @param year The year of the puzzle to get the solutions for
+     * @param token The session token used for authentication on adventofcode.com
+     * @return One element per known solution
+     */
+    public static String[] getSolutions(int day, int year, String token) {
+        return HttpRequest.get("https://adventofcode.com/"+year+"/day/"+day)
+                .addCookie("session", token)
+                .send()
+                .html()
+                .getElementsByTag("p")
+                .filter(p -> p.text().contains("Your puzzle answer was"))
+                .map(p -> p.getElementByTag("code").text())
+                .toArray(String[]::new);
+    }
+
+    /**
+     * Attempts to submit a specific solution for a specific puzzle and returns the response text.
+     *
+     * @param day The day of the puzzle
+     * @param year The year of the puzzle
+     * @param task 1 for the first subtask, 2 for the second
+     * @param token The session token used for authentication on adventofcode.com
+     * @param answer The answer to submit
+     * @return A message explaining whether the result was correct
+     */
+    public static String submit(int day, int year, @Range(from = 1, to = 2) int task, String token, String answer) {
+        // The response is an HTML page
+        return HttpRequest.post("https://adventofcode.com/"+year+"/day/"+day+"/answer")
+                .addCookie("session", token)
+                .setContentType(ContentType.URL_ENCODED)
+                .setData("level="+task+"&answer="+URLEncoder.encode(answer, StandardCharsets.UTF_8)) // Yes, the data is sent in the body as URL encoded
+                .send()
+                .html()
+                .getElementByTag("article")
+                .text();
+    }
+
+    /**
      * Runs the solution for the puzzle of this day, running task 2 iff task2() was
      * overridden, otherwise task 1.
      *
@@ -444,7 +501,7 @@ public abstract class Solution {
      */
     public static String run(Class<? extends Solution> type, int task, int day, int year) throws InvalidInputException {
         Config config = Config.read("config.json");
-        return run(type, task, day, year, config.token(), config.showInputStats());
+        return run(type, task, day, year, config.tokenValue(), config.showInputStats());
     }
 
     /**
@@ -492,7 +549,7 @@ public abstract class Solution {
      */
     public static String run(int task, int day, int year) throws InvalidInputException {
         Config config = Config.read("config.json");
-        return run(config.classPattern(), task, day, year, config.token(), config.showInputStats());
+        return run(config.classPattern(), task, day, year, config.tokenValue(), config.showInputStats());
     }
 
 
@@ -530,7 +587,7 @@ public abstract class Solution {
 
             if(!options.is("token")) {
                 config = Config.read(configPath);
-                token = config.token();
+                token = config.tokenValue();
             }
             else token = options.get("token");
 
@@ -558,7 +615,7 @@ public abstract class Solution {
     /**
      * Control flow exception. Used to indicate that the method wasn't ever overridden.
      * This class is an error rather than an exception to prevent it from being caught
-     * accidentally by "catch(Exception e) {" statements.
+     * accidentally by "catch(Exception e) { }" statements.
      */
     private static final class NotImplemented extends Error {
         private NotImplemented() {
@@ -570,7 +627,7 @@ public abstract class Solution {
     /**
      * Represents the config file.
      */
-    private record Config(String token,
+    private record Config(@Default(value = "token.txt", string = true) Path token,
                           String classPattern,
                           @Default("true") boolean showInputStats) {
         @NotNull
@@ -584,10 +641,18 @@ public abstract class Solution {
 
         @Override
         @NotNull
-        public String token() {
-            if(token == null)
-                throw new InvalidInputException("'token' field missing in config.json, which should contain the session cookie for logging in on adventofcode.com; you can read if from your browser's console.");
+        public Path token() {
+//            if(token == null)
+//                throw new InvalidInputException("'token' field missing in config.json, which should be the name of a file containing the session cookie for logging in on adventofcode.com; you can read if from your browser's console.");
             return token;
+        }
+
+        public String tokenValue() {
+            try {
+                return Files.readString(token()).trim();
+            } catch(IOException e) {
+                throw new InvalidInputException("Could not read '"+token()+"': "+e.getMessage(), e);
+            }
         }
 
         @Override
