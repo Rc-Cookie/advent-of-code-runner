@@ -261,6 +261,8 @@ public abstract class Solution {
             throw Utils.rethrow(e);
         }
 
+        Console.log("Running puzzle {}{}", task, day, year != Calendar.getInstance().get(Calendar.YEAR) ? " from year "+year : "");
+
         // Initialize other fields
         solution.initInput();
         if(inputStats)
@@ -311,7 +313,7 @@ public abstract class Solution {
 
         // Print results
         String result = Objects.toString(resultObj);
-        Console.map("Result", Console.colored(result, Attribute.BOLD()));
+        Console.map("Result (task "+task+")", Console.colored(result, Attribute.BOLD()));
         Console.map("Duration", watch.getPassedNanos() / 1000000.0 + "ms");
         if(resultObj == null || result.isBlank())
             // null or blank string won't be the solution, so just exit
