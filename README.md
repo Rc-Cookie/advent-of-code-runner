@@ -13,6 +13,25 @@ which eases the development. Some of the main features include:
  - Automatic submission of solution including feedback
  - Several utility methods which are commonly used when solving Advent of Code puzzles
 
+## Installation
+
+Use the maven artefact `de.rccookie:advent-of-code-runner:1.0.0` to include it
+you project.
+```xml
+<dependency>
+   <groupId>de.rccookie</groupId>
+   <artifactId>advent-of-code-runner</artifactId>
+   <version>1.0.0</version>
+</dependency>
+```
+You also need to add the repository used to distribute it:
+```xml
+<repository>
+   <id>rccookie.de</id>
+   <url>https://mvn.repo.rccookie.de/releases</url>
+</repository>
+```
+
 ## Configuration
 
 To be able to function properly, a `config.json` file should be present in the working directory
