@@ -261,7 +261,7 @@ public abstract class Solution {
             throw Utils.rethrow(e);
         }
 
-        Console.log("Running puzzle {}{}", task, day, year != Calendar.getInstance().get(Calendar.YEAR) ? " from year "+year : "");
+        Console.log("Running puzzle {}{}", day, year != Calendar.getInstance().get(Calendar.YEAR) ? " from year "+year : "");
 
         // Initialize other fields
         solution.initInput();
