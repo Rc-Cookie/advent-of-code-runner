@@ -8,7 +8,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
+import java.util.IntSummaryStatistics;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -22,6 +24,7 @@ import de.rccookie.http.ContentType;
 import de.rccookie.http.HttpRequest;
 import de.rccookie.json.Default;
 import de.rccookie.json.Json;
+import de.rccookie.math.Mathf;
 import de.rccookie.util.ArgsParser;
 import de.rccookie.util.Console;
 import de.rccookie.util.ListStream;
@@ -89,6 +92,10 @@ public abstract class Solution {
      * All the lines from the input string (without newlines).
      */
     protected String[] linesArr;
+    /**
+     * All the lines from the input string as char arrays (without newlines).
+     */
+    protected char[][] charTable;
 
 
     /**
@@ -154,14 +161,41 @@ public abstract class Solution {
     }
 
     /**
-     * Prints some statistics about the input data into the console. This function
+     * Returns the input lines as char arrays, with an additional line before, after,
+     * and a char before and after each line ("around the outside") of the specified
+     * padding character. If some lines are shorter than others, they will receive
+     * additional padding to match the length of the other lines. Thus, the returned
+     * array will have the length <code>charTable.length + 2</code> and all lines will
+     * have the length <code>max(i: charTable[i].length) + 2</code>.
+     *
+     * @param padding The char to pad all lines with
+     * @return The input lines as char arrays padded to have equal length with additional
+     *         padding in front, behind, above and below
+     */
+    protected char[][] charTable(char padding) {
+        int maxLength = Mathf.max(charTable, l -> l.length);
+        char[][] table = new char[charTable.length][maxLength + 2];
+        Arrays.fill(table[0], padding);
+        Arrays.fill(table[table.length-1], padding);
+        for(int i=0; i<charTable.length; i++) {
+            table[i+1][0] = padding;
+            System.arraycopy(charTable[i], 0, table[i+1], 1, charTable[i].length);
+            Arrays.fill(table[i+1], charTable[i].length + 1, table[i+1].length, padding);
+        }
+        return table;
+    }
+
+    /**
+     * Return some statistics about the input data into the console. This function
      * may be modified to print custom statistics.
      */
-    protected void printInputStats() {
-        Console.map("Input statistics",
-                "Lines:", linesArr.length,
-                "| Chars:", chars.length,
-                "| Blank lines:", lines.filter(String::isBlank).count());
+    @SuppressWarnings("DataFlowIssue")
+    protected String getInputStats() {
+        IntSummaryStatistics lengths = lines.mapToInt(String::length).filter(i -> i != 0).summaryStatistics();
+        return "Input statistics: Lines: "+linesArr.length
+               +" | Chars: "+chars.length
+               +" | Blank lines: "+lines.filter(String::isBlank).count()
+               +" | Line lengths: "+lengths.getMin()+(lengths.getMin() == lengths.getMax() ? "" : " - "+lengths.getMax());
     }
 
 
@@ -173,6 +207,8 @@ public abstract class Solution {
         charList = new ArrayList<>(input.chars().mapToObj(c -> (char) c).toList());
         lines = ListStream.of(input.lines()).useAsList();
         linesArr = lines.toArray(String[]::new);
+        //noinspection DataFlowIssue
+        charTable = lines.map(String::toCharArray).toArray(char[][]::new);
     }
 
 
@@ -261,12 +297,12 @@ public abstract class Solution {
             throw Utils.rethrow(e);
         }
 
-        Console.log("Running puzzle {}{}", day, year != Calendar.getInstance().get(Calendar.YEAR) ? " from year "+year : "");
-
         // Initialize other fields
         solution.initInput();
         if(inputStats)
-            solution.printInputStats();
+            Console.log(solution.getInputStats());
+
+        Console.log("Running puzzle {}{}", day, year != Calendar.getInstance().get(Calendar.YEAR) ? " from year "+year : "");
 
         // Give the solution a chance to do some preparation
         solution.load();
