@@ -17,6 +17,7 @@ import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
+import java.util.function.IntFunction;
 import java.util.function.ToLongFunction;
 
 import com.diogonunes.jcolor.Attribute;
@@ -32,6 +33,8 @@ import de.rccookie.util.Options;
 import de.rccookie.util.Stopwatch;
 import de.rccookie.util.Utils;
 import de.rccookie.util.Wrapper;
+import de.rccookie.xml.Node;
+import de.rccookie.xml.XML;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Range;
 
@@ -221,14 +224,15 @@ public abstract class Solution {
      * @param day If positive the day of month of the puzzle, otherwise the current date
      * @param year If positive the year of the puzzle, otherwise the current year
      * @param token Session token for adventofcode.com
+     * @param exampleInput Whether to use the example input instead of the real input
      * @param inputStats Whether to print input stats
      * @return The result computed by the solution class (may be wrong)
      * @throws InvalidInputException If some input given is invalid
      */
-    private static String run(Class<? extends Solution> type, int task, int day, int year, String token, boolean inputStats) throws InvalidInputException {
+    private static String run(Class<? extends Solution> type, int task, int day, int year, String token, boolean exampleInput, boolean inputStats) throws InvalidInputException {
 
-        // Validate token syntax
-        if(token.length() != 128)
+        // Validate token syntax (don't need a token for example input - not for input download, and won't submit)
+        if(!exampleInput && token.length() != 128)
             throw new InvalidInputException("Invalid token, expected 128 characters");
 
         // Get date of puzzle if not already given
@@ -265,37 +269,9 @@ public abstract class Solution {
         }, "Solution fetcher").start();
 
         // Read input file or fetch from website and store
-        Path userFile = Path.of("input", year+"", "user");
-        Path inputFile = Path.of("input", year+"", day+".txt");
-        try {
-            // Keep a file with the session token in the directory of the input files. If the
-            // token changes, we have to reload the input files as the user may have changed.
-            if(Files.exists(userFile) && !Files.readString(userFile).trim().equals(token)) {
-                // Delete all files in directory
-                try(var files = Files.list(userFile.resolve(".."))) {
-                    for(Path file : Utils.iterate(files.filter(Files::isRegularFile)))
-                        Files.delete(file);
-                }
-            }
-            Files.writeString(userFile, token);
-
-            // Does the input cache (still) exist?
-            if(Files.exists(inputFile))
-                solution.input = Files.readString(inputFile);
-            else {
-                Console.log("Fetching input...");
-                solution.input = HttpRequest.get("https://adventofcode.com/"+year+"/day/"+day+"/input")
-                        .addCookie("session", token)
-                        .send().text();
-                if(solution.input.startsWith("Puzzle inputs differ per user"))
-                    throw new InvalidInputException("Invalid token, cannot receive input data");
-                // Store the input, so we don't have to load it every time
-                Files.createDirectories(inputFile.resolve(".."));
-                Files.writeString(inputFile, solution.input);
-            }
-        } catch(IOException e) {
-            throw Utils.rethrow(e);
-        }
+        if(exampleInput)
+            solution.input = getExampleInput(day, year, Path.of("input", year+"", "examples", day+".txt"));
+        else solution.input = getInput(day, year, token, Path.of("input", year+"", day+".txt"));
 
         // Initialize other fields
         solution.initInput();
@@ -351,12 +327,33 @@ public abstract class Solution {
         String result = Objects.toString(resultObj);
         Console.map("Result (task "+task+")", Console.colored(result, Attribute.BOLD()));
         Console.map("Duration", watch.getPassedNanos() / 1000000.0 + "ms");
-        if(resultObj == null || result.isBlank())
+        if(exampleInput || resultObj == null || result.isBlank())
             // null or blank string won't be the solution, so just exit
             return resultObj == null ? null : result;
 
-        // Wait until we know which tasks are already done
+        return maybeSubmit(task, day, year, token, solutions, result, t -> run(type, t, _day, _year, token, false, false));
+    }
+
+    /**
+     * Waits until the solutions wrapper is filled, then prompts the user to submit and submits the result
+     * if the user can actually submit for that task. If it's already done, the solution will be compared
+     * with the given result and printed. If the task is not yet unlocked, the user will be prompted to
+     * confirm, and then the next available task will be executed instead.
+     *
+     * @param task The puzzle task that the result belongs to
+     * @param day The day of the puzzle
+     * @param year The year of the puzzle
+     * @param token The login token
+     * @param solutions Either already filled, or filled later and then notified: An array containing one entry
+     *                  per already known solution (because already submitted and correct)
+     * @param result The result to maybe submit
+     * @param runTask A function that runs the same configuration again, except the given task number
+     * @return The result given, or the one computed if executed a second time
+     */
+    static String maybeSubmit(int task, int day, int year, String token, Wrapper<String[]> solutions, String result, IntFunction<String> runTask) {
+        //noinspection SynchronizationOnLocalVariableOrMethodParameter
         synchronized(solutions) {
+            // Wait until we know which tasks are already done
             while(solutions.value == null) try {
                 solutions.wait();
             } catch(InterruptedException e) {
@@ -371,14 +368,14 @@ public abstract class Solution {
                 int todo = solutions.value.length + 1;
                 Console.log("Cannot submit solution for task {} before task {} is completed.", task, todo);
                 if(Console.input("Execute task {} instead? >", todo).isBlank())
-                    return run(type, todo, day, year, token, false);
+                    return runTask.apply(todo);
             }
             else {
                 // The correct answer has already been submitted, now we can compare
                 // ourselves with the correct answer
-                if(solutions.value[task-1].equals(result))
+                if(solutions.value[task - 1].equals(result))
                     Console.log("That is the correct answer!");
-                else Console.log("That is not the correct answer, the expected answer is {}.", Console.colored(solutions.value[task-1], Attribute.ITALIC()));
+                else Console.log("That is not the correct answer, the expected answer is {}.", Console.colored(solutions.value[task - 1], Attribute.ITALIC()));
                 Console.log("(You have already solved this puzzle before)");
             }
             return result;
@@ -395,11 +392,11 @@ public abstract class Solution {
             throw new InvalidInputException("Invalid session token");
 
         // Filter out readable text and put the first sentence on an extra line
-        info = info.substring(0, info.contains(day+"!") ? info.indexOf(day+"!") + (day+"!").length() : info.indexOf("[") - 1)
-                   .replaceAll("\\s+", " ")
-                   .replace(" ,", ",")
-                   .replace(" .", ".")
-                   .replaceFirst("([.!?])\\s*", "$1\n");
+        info = info.substring(0, info.contains(day + "!") ? info.indexOf(day + "!") + (day + "!").length() : info.indexOf("[") - 1)
+                .replaceAll("\\s+", " ")
+                .replace(" ,", ",")
+                .replace(" .", ".")
+                .replaceFirst("([.!?])\\s*", "$1\n");
         Console.log(info);
 
         return result;
@@ -415,11 +412,12 @@ public abstract class Solution {
      * @param day If positive the day of month of the puzzle, otherwise the current date
      * @param year If positive the year of the puzzle, otherwise the current year
      * @param token Session token for adventofcode.com
+     * @param exampleInput Whether to use the example input instead of the real input
      * @param inputStats Whether to print input stats
      * @return The result computed by the solution class (may be wrong)
      * @throws InvalidInputException If some input given is invalid
      */
-    private static String run(String classPattern, int task, int day, int year, String token, boolean inputStats) throws InvalidInputException {
+    private static String run(String classPattern, int task, int day, int year, String token, boolean exampleInput, boolean inputStats) throws InvalidInputException {
         // Get date if not given
         if(day <= 0)
             day = Calendar.getInstance().get(Calendar.DAY_OF_MONTH);
@@ -443,7 +441,90 @@ public abstract class Solution {
             throw new InvalidInputException("Your solution class must extend "+Solution.class.getName()+", "+type.getName()+" does not extend it");
 
         // Run with the found class
-        return run(type, task, day, year, token, inputStats);
+        return run(type, task, day, year, token, exampleInput, inputStats);
+    }
+
+    /**
+     * Loads or reads the cache for the puzzle input for a specific puzzle
+     * and for a specific user.
+     *
+     * @param day The day of the puzzle to get the input for
+     * @param year The year of the puzzle to get the input for
+     * @param token The token of the user to get the input for
+     * @param cacheFile The file to use as cache. May or may not already be present
+     * @return The input for that puzzle for that user
+     */
+    public static String getInput(int day, int year, String token, Path cacheFile) {
+        try {
+            // Keep a file with the session token in the directory of the input files. If the
+            // token changes, we have to reload the input files as the user may have changed.
+            Path userFile = cacheFile.resolveSibling("user");
+            if(Files.exists(userFile) && !Files.readString(userFile).trim().equals(token)) {
+                // Delete all files in directory
+                try(var files = Files.list(userFile.resolve(".."))) {
+                    for(Path file : Utils.iterate(files.filter(Files::isRegularFile)))
+                        Files.delete(file);
+                }
+            }
+            Files.createDirectories(cacheFile.resolve(".."));
+            Files.writeString(userFile, token);
+
+            // Does the input cache (still) exist?
+            if(Files.exists(cacheFile))
+                return Files.readString(cacheFile);
+            Console.log("Fetching input...");
+            String input = HttpRequest.get("https://adventofcode.com/"+year+"/day/"+day+"/input")
+                    .addCookie("session", token)
+                    .send().text();
+            if(input.startsWith("Puzzle inputs differ per user"))
+                throw new InvalidInputException("Invalid token, cannot receive input data");
+            // Store the input, so we don't have to load it every time
+            Files.createDirectories(cacheFile.resolve(".."));
+            Files.writeString(cacheFile, input);
+            return input;
+        } catch(IOException e) {
+            throw Utils.rethrow(e);
+        }
+    }
+
+    /**
+     * Loads or reads the cache for the example puzzle input for a specific
+     * puzzle. The example is detected at best effort, but may not actually be the
+     * example if there are multiple code blocks.
+     *
+     * @param day The day of the puzzle to get the example input for
+     * @param year The year of the puzzle to get the example input for
+     * @param cacheFile The file to use as cache. May or may not already be present
+     * @return The example input for that puzzle
+     */
+    public static String getExampleInput(int day, int year, Path cacheFile) {
+        try {
+            // No need to check for specific user - same for everyone
+
+            // Does the input cache (still) exist?
+            if(Files.exists(cacheFile))
+                return Files.readString(cacheFile);
+
+            Console.log("Fetching example input...");
+            Node article = HttpRequest.get("https://adventofcode.com/" + year + "/day/" + day)
+                    .send().body()
+                    .xml(XML.HTML | XML.PRESERVE_WHITESPACES)
+                    .getElementByTag("article");
+
+            int i = 0;
+            while(!article.child(i).text().contains("(your puzzle input)")) i++;
+            i++;
+            while(i < article.children.size() && !article.child(i).tag.equals("pre")) i++;
+
+            String input = (i < article.children.size() ? article.child(i) : article.getElementByTag("pre")).text();
+
+            // Store the input, so we don't have to load it every time
+            Files.createDirectories(cacheFile.resolve(".."));
+            Files.writeString(cacheFile, input);
+            return input;
+        } catch(IOException e) {
+            throw Utils.rethrow(e);
+        }
     }
 
     /**
@@ -538,8 +619,23 @@ public abstract class Solution {
      * @throws InvalidInputException If some input in the config file is invalid
      */
     public static String run(Class<? extends Solution> type, int task, int day, int year) throws InvalidInputException {
+        return run(type, task, day, year, false);
+    }
+
+    /**
+     * Runs the specified task of the solution for the puzzle of a specific date.
+     *
+     * @param type The solution class to use to solve the puzzle
+     * @param task 1 or 2 to run that specific part of the puzzle, otherwise find out automatically
+     * @param day The day of the puzzle to solve
+     * @param year The year of the puzzle to solve
+     * @param exampleInput Whether to use the example input instead of the real input
+     * @return The result for one part of the puzzle
+     * @throws InvalidInputException If some input in the config file is invalid
+     */
+    public static String run(Class<? extends Solution> type, int task, int day, int year, boolean exampleInput) throws InvalidInputException {
         Config config = Config.read("config.json");
-        return run(type, task, day, year, config.tokenValue(), config.showInputStats());
+        return run(type, task, day, year, config.tokenValue(), exampleInput, config.showInputStats());
     }
 
     /**
@@ -586,8 +682,22 @@ public abstract class Solution {
      * @throws InvalidInputException If some input in the config file is invalid
      */
     public static String run(int task, int day, int year) throws InvalidInputException {
+        return run(task, day, year, false);
+    }
+
+    /**
+     * Runs the specified task of the solution for the puzzle of a specific date.
+     *
+     * @param task 1 or 2 to run that specific part of the puzzle, otherwise find out automatically
+     * @param day The day of the puzzle to solve
+     * @param year The year of the puzzle to solve
+     * @param exampleInput Whether to use the example input instead of the real input
+     * @return The result for one part of the puzzle
+     * @throws InvalidInputException If some input in the config file is invalid
+     */
+    public static String run(int task, int day, int year, boolean exampleInput) throws InvalidInputException {
         Config config = Config.read("config.json");
-        return run(config.classPattern(), task, day, year, config.tokenValue(), config.showInputStats());
+        return run(config.classPattern(), task, day, year, config.tokenValue(), exampleInput, config.showInputStats());
     }
 
 
@@ -612,6 +722,7 @@ public abstract class Solution {
         parser.addOption(null, "token", true, "Overrides config; access token used to authenticate on adventofcode.com");
         parser.addOption(null, "cls", true, "Overrides config; fully qualified name pattern of your solution class, where {day}, {0_day}, {year} and {full_year} will be replaced with the day of month, the day of month padded with a 0 if needed, the last two digits of the year or the full year number, respectively.");
         parser.addOption('s', "inputStats", true, "Overrides config; boolean value ('true' for true) whether to print input stats before execution, default is true");
+        parser.addOption('x', "example", false, "Use example input instead of real input. (Note that the detection for example input may not always be correct)");
         Options options = parser.parse(args);
 
         try {
@@ -643,7 +754,7 @@ public abstract class Solution {
             }
             else inputStats = options.get("inputStats").equalsIgnoreCase("true");
 
-            run(classPattern, options.getIntOr("task", -1), options.getIntOr("day", -1), options.getIntOr("year", -1), token, inputStats);
+            run(classPattern, options.getIntOr("task", -1), options.getIntOr("day", -1), options.getIntOr("year", -1), token, options.is("example"), inputStats);
         } catch(InvalidInputException e) {
             Console.error(e.getMessage());
         }
@@ -675,14 +786,6 @@ public abstract class Solution {
             } catch(Exception e) {
                 throw new InvalidInputException("Failed to parse "+path + (e.getMessage() != null ? ": "+e.getMessage() : "")+"\nCheck the README.md file to get detail on the structure of the config file.", e);
             }
-        }
-
-        @Override
-        @NotNull
-        public Path token() {
-//            if(token == null)
-//                throw new InvalidInputException("'token' field missing in config.json, which should be the name of a file containing the session cookie for logging in on adventofcode.com; you can read if from your browser's console.");
-            return token;
         }
 
         public String tokenValue() {
