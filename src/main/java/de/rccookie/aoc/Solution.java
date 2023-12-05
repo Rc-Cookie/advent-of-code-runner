@@ -7,6 +7,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -382,7 +384,7 @@ public abstract class Solution {
         }
 
         // Ask whether the user want's to submit this answer
-        if(!Console.input("Submit? >").isBlank())
+        if(!"".equals(Console.input("Submit? >")))
             return result;
 
         // Send the data, which gets HTML as response
@@ -456,10 +458,13 @@ public abstract class Solution {
      */
     public static String getInput(int day, int year, String token, Path cacheFile) {
         try {
-            // Keep a file with the session token in the directory of the input files. If the
+            // Keep a file with the hashed session token in the directory of the input files. If the
             // token changes, we have to reload the input files as the user may have changed.
+            // Hash the token to prevent a user accidentally publishing their token to the public
+            // by uploading the input folder.
             Path userFile = cacheFile.resolveSibling("user");
-            if(Files.exists(userFile) && !Files.readString(userFile).trim().equals(token)) {
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(token.getBytes());
+            if(Files.exists(userFile) && !Arrays.equals(Files.readAllBytes(userFile), hash)) {
                 // Delete all files in directory
                 try(var files = Files.list(userFile.resolve(".."))) {
                     for(Path file : Utils.iterate(files.filter(Files::isRegularFile)))
@@ -467,7 +472,7 @@ public abstract class Solution {
                 }
             }
             Files.createDirectories(cacheFile.resolve(".."));
-            Files.writeString(userFile, token);
+            Files.write(userFile, hash);
 
             // Does the input cache (still) exist?
             if(Files.exists(cacheFile))
@@ -484,6 +489,8 @@ public abstract class Solution {
             return input;
         } catch(IOException e) {
             throw Utils.rethrow(e);
+        } catch(NoSuchAlgorithmException e) {
+            throw new InvalidInputException("Why is SHA-256 not available on your system???", e);
         }
     }
 
@@ -715,7 +722,7 @@ public abstract class Solution {
     public static void main(String[] args) {
         ArgsParser parser = new ArgsParser();
         parser.addDefaults();
-        parser.addOption('t', "task", true, "Specify a specific task that should be ran, rather than running task 2 iff implemented otherwise task 1.");
+        parser.addOption('t', "task", true, "Specify a specific task that should be ran, rather than running task 2 iff implemented otherwise task 1");
         parser.addOption('d', "day", true, "Specify a specific day of month whose task should be executed, rather than today's task");
         parser.addOption('y', "year", true, "Specify a specific year (yy or yyyy) whose task should be executed, rather than running this year's tasks");
         parser.addOption('c', "config", true, "Path to config file, default is config.json");
@@ -754,7 +761,11 @@ public abstract class Solution {
             }
             else inputStats = options.get("inputStats").equalsIgnoreCase("true");
 
-            run(classPattern, options.getIntOr("task", -1), options.getIntOr("day", -1), options.getIntOr("year", -1), token, options.is("example"), inputStats);
+            int year = options.getIntOr("year", -1);
+            if(year >= 0 && year < 100)
+                year += 2000;
+
+            run(classPattern, options.getIntOr("task", -1), options.getIntOr("day", -1), year, token, options.is("example"), inputStats);
         } catch(InvalidInputException e) {
             Console.error(e.getMessage());
         }

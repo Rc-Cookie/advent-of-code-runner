@@ -6,7 +6,7 @@
 
   <groupId>de.rccookie</groupId>
   <artifactId>advent-of-code-runner</artifactId>
-  <version>1.4.0</version>
+  <version>1.4.1</version>
 
   <properties>
     <maven.compiler.source>17</maven.compiler.source>
@@ -24,23 +24,23 @@
   <dependencies>
     <dependency>
       <groupId>de.rccookie</groupId>
-      <artifactId>util</artifactId>
-      <version>1.18.4.1</version>
-    </dependency>
-    <dependency>
-      <groupId>de.rccookie</groupId>
       <artifactId>http</artifactId>
       <version>1.3.7</version>
     </dependency>
     <dependency>
       <groupId>de.rccookie</groupId>
-      <artifactId>math</artifactId>
-      <version>1.14.2</version>
+      <artifactId>xml</artifactId>
+      <version>0.1.11.4</version>
     </dependency>
     <dependency>
       <groupId>de.rccookie</groupId>
-      <artifactId>xml</artifactId>
-      <version>0.1.11.4</version>
+      <artifactId>util</artifactId>
+      <version>1.18.5.2</version>
+    </dependency>
+    <dependency>
+      <groupId>de.rccookie</groupId>
+      <artifactId>math</artifactId>
+      <version>1.14.2</version>
     </dependency>
     <dependency>
       <groupId>de.rccookie</groupId>
