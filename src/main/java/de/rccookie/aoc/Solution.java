@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.IntSummaryStatistics;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -21,6 +22,7 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.function.IntFunction;
 import java.util.function.ToLongFunction;
+import java.util.stream.Stream;
 
 import com.diogonunes.jcolor.Attribute;
 import de.rccookie.http.ContentType;
@@ -35,6 +37,8 @@ import de.rccookie.util.Options;
 import de.rccookie.util.Stopwatch;
 import de.rccookie.util.Utils;
 import de.rccookie.util.Wrapper;
+import de.rccookie.util.text.Alignment;
+import de.rccookie.util.text.TableRenderer;
 import de.rccookie.xml.Node;
 import de.rccookie.xml.XML;
 import org.jetbrains.annotations.NotNull;
@@ -218,6 +222,128 @@ public abstract class Solution {
 
 
     /**
+     * Runs all tasks of all days up to (and including) a specific day (only tasks from that year)
+     * and displays timing information.
+     *
+     * @param classPattern The pattern to use to resolve the solution classes
+     * @param day The day up to which the puzzle solutions should be executed (inclusive)
+     * @param year The year of the puzzles to solve
+     * @param token The token used for authentication
+     * @param repeatCount How many times to run each task repeatedly, then average the runtime duration
+     * @param checkResults Whether to validate the results of the tasks (if the task has already been solved before)
+     * @throws InvalidInputException If some input given is invalid
+     */
+    private static void runAll(String classPattern, int day, int year, String token, int repeatCount, boolean checkResults) throws InvalidInputException {
+        // Validate token syntax
+        if(token.length() != 128)
+            throw new InvalidInputException("Invalid token, expected 128 characters");
+
+        // Execute at least once
+        if(repeatCount < 1)
+            throw new InvalidInputException("Repeat count < 1");
+
+        // Get date of puzzle if not already given
+        if(day <= 0)
+            day = Calendar.getInstance().get(Calendar.DAY_OF_MONTH);
+        if(year <= 0)
+            year = Calendar.getInstance().get(Calendar.YEAR);
+
+        // Create instances of solutions and initialize
+        Solution[] solutions = new Solution[day * 2];
+        String[] correctSolutions = new String[day * 2];
+        int _year = year;
+        if(checkResults)
+            Console.log("Loading puzzle solutions...");
+        // Run in parallel -> can load multiple inputs at once
+        Stream.iterate(0, i->i+1).limit(day).parallel().forEach(i ->  {
+            Class<? extends Solution> type = resolveType(classPattern, i+1, _year);
+            solutions[2*i] = createInstance(type);
+            solutions[2*i+1] = createInstance(type);
+
+            solutions[2*i].input = solutions[2*i+1].input = getInput(i+1, _year, token, Path.of("input", _year+"", (i+1)+".txt"));
+            solutions[2*i].initInput();
+            solutions[2*i+1].initInput();
+
+            if(checkResults) {
+                String[] correct = getSolutions(i + 1, _year, token);
+                System.arraycopy(correct, 0, correctSolutions, 2 * i, correct.length);
+            }
+        });
+
+        for(int i=0; i<solutions.length; i++) try {
+            solutions[i].load();
+        } catch(Exception e) {
+            Console.error("Exception while loading day:", i/2 + 1);
+            e.printStackTrace();
+            // Exception should occur in instances (for task 1 and 2) because its independent
+            // of the task
+            solutions[i] = solutions[i+1] = null;
+            i++; // Don't print the error twice
+        }
+
+        long[] durations = new long[solutions.length];
+        boolean allCorrect = true;
+        for(int i=0; i<solutions.length; i++) try {
+            if(solutions[i] == null) continue;
+
+            Console.log("Running day {} task {}...", i/2 + 1, i%2 + 1);
+            Stopwatch watch = new Stopwatch().start();
+            Object resultObj = null;
+            for(int j=0; j<repeatCount; j++) {
+                if(i % 2 == 0)
+                    resultObj = solutions[i].task1();
+                else resultObj = solutions[i].task2();
+            }
+            durations[i] = watch.getPassedNanos() / repeatCount;
+
+            if(checkResults && correctSolutions[i] != null) {
+                String result = unpackResult(resultObj);
+                if(!result.equals(correctSolutions[i])) {
+                    Console.error("Incorrect result, expected {} but got {}", correctSolutions[i], result);
+                    allCorrect = false;
+                }
+            }
+
+        } catch(Exception e) {
+            e.printStackTrace();
+        } catch(NotImplemented e) {
+            Console.error("Not implemented");
+        }
+
+        Console.map("Duration"+(repeatCount>1?" (average of "+repeatCount+" runs)":""), (Mathf.sumL(durations) / 1000000.0) + "ms");
+        if(checkResults && allCorrect)
+            Console.log("All results correct");
+
+        // Show the duration of each individual task in a table
+        System.out.println(createTable(durations));
+    }
+
+    /**
+     * Creates a table mapping days and tasks to the duration of their solution. If
+     * a duration is 0, it will be displayed as "N/A".
+     *
+     * @param durations The durations, in task order: 1st is day 1 task 1, then day 1 task 2, then day 2 task 1 etc.
+     * @return A table renderer to show the given data as a table
+     */
+    @NotNull
+    private static TableRenderer createTable(long[] durations) {
+        TableRenderer table = new TableRenderer();
+        table.horizontalAlignment(Alignment.RIGHT);
+        table.columnLabels("Task 1", "Task 2");
+        List<String> rowLabels = new ArrayList<>();
+        for(int i = 0; i < durations.length / 2; i++) {
+            rowLabels.add("Day "+(i+1));
+            table.addRow(
+                    durations[2 * i] == 0 ? "N/A" : String.format(Locale.ROOT, "%.3fms", durations[2 * i] / 1000000.0),
+                    durations[2 * i + 1] == 0 ? "N/A" : String.format(Locale.ROOT, "%.3fms", durations[2*i+1] / 1000000.0)
+            );
+        }
+        table.rowLabels(rowLabels);
+        return table;
+    }
+
+
+    /**
      * Runs a task using the given Solution implementation and returns the result.
      *
      * @param type The solution class that should be used to solve the puzzle
@@ -231,11 +357,15 @@ public abstract class Solution {
      * @return The result computed by the solution class (may be wrong)
      * @throws InvalidInputException If some input given is invalid
      */
-    private static String run(Class<? extends Solution> type, int task, int day, int year, String token, boolean exampleInput, boolean inputStats) throws InvalidInputException {
+    private static String run(Class<? extends Solution> type, int task, int day, int year, String token, boolean exampleInput, int repeatCount, boolean inputStats) throws InvalidInputException {
 
         // Validate token syntax (don't need a token for example input - not for input download, and won't submit)
         if(!exampleInput && token.length() != 128)
             throw new InvalidInputException("Invalid token, expected 128 characters");
+
+        // Execute at least once
+        if(repeatCount < 1)
+            throw new InvalidInputException("Repeat count < 1");
 
         // Get date of puzzle if not already given
         if(day <= 0)
@@ -244,20 +374,7 @@ public abstract class Solution {
             year = Calendar.getInstance().get(Calendar.YEAR);
 
         // Create instance of solution
-        Solution solution;
-        try {
-            Constructor<? extends Solution> ctor = type.getDeclaredConstructor();
-            ctor.setAccessible(true);
-            solution = ctor.newInstance();
-        } catch(NoSuchMethodException e) {
-            throw new InvalidInputException(type.getName()+" does not have a parameter-less constructor. Please declare one.", e);
-        } catch(InstantiationException e) {
-            throw new InvalidInputException(type.getName()+" is not instantiatable, possibly because it is an abstract class or an interface.", e);
-        } catch(InvocationTargetException e) {
-            throw Utils.rethrow(e.getCause());
-        } catch(IllegalAccessException e) {
-            throw new AssertionError();
-        }
+        Solution solution = createInstance(type);
 
         // In the background, find which parts of the puzzle were already solved and get their solutions
         Wrapper<String[]> solutions = new Wrapper<>(null);
@@ -286,25 +403,29 @@ public abstract class Solution {
         solution.load();
 
         // Actually execute the task
-        Object resultObj;
+        Object resultObj = null;
         Stopwatch watch = new Stopwatch().start();
         if(task < 1 || task > 2) {
             // We don't know which one, so we execute task2(). If we get a NotImplemented error,
             // we know it cannot have been overridden by the user. Thus, then simply execute task1().
             try {
-                resultObj = solution.task2();
+                for(int i=0; i<repeatCount; i++)
+                    resultObj = solution.task2();
                 task = 2;
             } catch(NotImplemented n) {
                 watch.restart();
-                resultObj = solution.task1();
+                for(int i=0; i<repeatCount; i++)
+                    resultObj = solution.task1();
                 task = 1;
             }
         }
         else if(task == 1)
-            resultObj = solution.task1();
+            for(int i=0; i<repeatCount; i++)
+                resultObj = solution.task1();
         else {
             try {
-                resultObj = solution.task2();
+                for(int i=0; i<repeatCount; i++)
+                    resultObj = solution.task2();
             } catch(NotImplemented n) {
                 // This happens if task2() wasn't overridden but the user specified to run task 2 explicitly
                 throw new InvalidInputException("Task 2 is not yet implemented. Override the 'public Object task2() { }' method in "+type.getSimpleName());
@@ -312,28 +433,15 @@ public abstract class Solution {
         }
         watch.stop();
 
-        // Recursively unpack optionals
-        while(resultObj != null) {
-            if(resultObj instanceof Optional<?>)
-                resultObj = ((Optional<?>) resultObj).orElse(null);
-            else if(resultObj instanceof OptionalInt)
-                resultObj = ((OptionalInt) resultObj).isPresent() ? ((OptionalInt) resultObj).getAsInt() : null;
-            else if(resultObj instanceof OptionalLong)
-                resultObj = ((OptionalLong) resultObj).isPresent() ? ((OptionalLong) resultObj).getAsLong() : null;
-            else if(resultObj instanceof OptionalDouble)
-                resultObj = ((OptionalDouble) resultObj).isPresent() ? ((OptionalDouble) resultObj).getAsDouble() : null;
-            else break;
-        }
-
         // Print results
-        String result = Objects.toString(resultObj);
+        String result = unpackResult(resultObj);
         Console.map("Result (task "+task+")", Console.colored(result, Attribute.BOLD()));
-        Console.map("Duration", watch.getPassedNanos() / 1000000.0 + "ms");
+        Console.map("Duration", watch.getPassedNanos() / repeatCount / 1000000.0 + "ms");
         if(exampleInput || resultObj == null || result.isBlank())
             // null or blank string won't be the solution, so just exit
             return resultObj == null ? null : result;
 
-        return maybeSubmit(task, day, year, token, solutions, result, t -> run(type, t, _day, _year, token, false, false));
+        return maybeSubmit(task, day, year, token, solutions, result, t -> run(type, t, _day, _year, token, false, repeatCount, false));
     }
 
     /**
@@ -419,31 +527,89 @@ public abstract class Solution {
      * @return The result computed by the solution class (may be wrong)
      * @throws InvalidInputException If some input given is invalid
      */
-    private static String run(String classPattern, int task, int day, int year, String token, boolean exampleInput, boolean inputStats) throws InvalidInputException {
-        // Get date if not given
+    private static String run(String classPattern, int task, int day, int year, String token, boolean exampleInput, int repeatCount, boolean inputStats) throws InvalidInputException {
+        // Get date if not given to resolve class
         if(day <= 0)
             day = Calendar.getInstance().get(Calendar.DAY_OF_MONTH);
         if(year <= 0)
             year = Calendar.getInstance().get(Calendar.YEAR);
 
+        // Run with the resolved class
+        return run(resolveType(classPattern, day, year), task, day, year, token, exampleInput, repeatCount, inputStats);
+    }
+
+    /**
+     * Resolves the solution class from a given class pattern for a specific day and year.
+     *
+     * @param classPattern The pattern name of the class to resolve
+     * @param day The day to resolve the class for
+     * @param year The year to resolve the class for
+     * @return The type of the solution class
+     */
+    private static Class<? extends Solution> resolveType(String classPattern, int day, int year) {
         // Build concrete class name from pattern
         String className = classPattern.replace("{day}", ""+day)
-                                       .replace("{0_day}", String.format("%02d", day))
-                                       .replace("{year}", String.format("%02d", year % 100))
-                                       .replace("{full_year}", ""+year);
+                .replace("{0_day}", String.format("%02d", day))
+                .replace("{year}", String.format("%02d", year % 100))
+                .replace("{full_year}", ""+year);
 
-        Class<? extends Solution> type;
         try {
             //noinspection unchecked
-            type = (Class<? extends Solution>) Class.forName(className);
+            Class<? extends Solution> type = (Class<? extends Solution>) Class.forName(className);
+            // Validate that class actually extends Solution
+            if(!Solution.class.isAssignableFrom(type))
+                throw new InvalidInputException("Your solution class must extend "+Solution.class.getName()+", "+type.getName()+" does not extend it");
+            return type;
         } catch(ClassNotFoundException e) {
             throw new InvalidInputException("Could not find solution class '"+className+"'", e);
         }
-        if(!Solution.class.isAssignableFrom(type))
-            throw new InvalidInputException("Your solution class must extend "+Solution.class.getName()+", "+type.getName()+" does not extend it");
+    }
 
-        // Run with the found class
-        return run(type, task, day, year, token, exampleInput, inputStats);
+    /**
+     * Create a new instance of the given type, throwing an exception if there is no parameter-less
+     * constructor declared.
+     *
+     * @param type The class of the solution to instantiate
+     * @return A new instance of that type
+     */
+    private static Solution createInstance(Class<? extends Solution> type) {
+        try {
+            Constructor<? extends Solution> ctor = type.getDeclaredConstructor();
+            ctor.setAccessible(true);
+            return ctor.newInstance();
+        } catch(NoSuchMethodException e) {
+            throw new InvalidInputException(type.getName()+" does not have a parameter-less constructor. Please declare one.", e);
+        } catch(InstantiationException e) {
+            throw new InvalidInputException(type.getName()+" is not instantiatable, possibly because it is an abstract class or an interface.", e);
+        } catch(InvocationTargetException e) {
+            throw Utils.rethrow(e.getCause());
+        } catch(IllegalAccessException e) {
+            throw new AssertionError();
+        }
+    }
+
+    /**
+     * Returns the string representation of the given result object.
+     *
+     * @param result The result to get a string for. Optionals will be automatically
+     *               unpacked
+     * @return The result as a string
+     */
+    @NotNull
+    private static String unpackResult(Object result) {
+        // Recursively unpack optionals
+        while(result != null) {
+            if(result instanceof Optional<?>)
+                result = ((Optional<?>) result).orElse(null);
+            else if(result instanceof OptionalInt)
+                result = ((OptionalInt) result).isPresent() ? ((OptionalInt) result).getAsInt() : null;
+            else if(result instanceof OptionalLong)
+                result = ((OptionalLong) result).isPresent() ? ((OptionalLong) result).getAsLong() : null;
+            else if(result instanceof OptionalDouble)
+                result = ((OptionalDouble) result).isPresent() ? ((OptionalDouble) result).getAsDouble() : null;
+            else break;
+        }
+        return Objects.toString(result);
     }
 
     /**
@@ -458,26 +624,14 @@ public abstract class Solution {
      */
     public static String getInput(int day, int year, String token, Path cacheFile) {
         try {
-            // Keep a file with the hashed session token in the directory of the input files. If the
-            // token changes, we have to reload the input files as the user may have changed.
-            // Hash the token to prevent a user accidentally publishing their token to the public
-            // by uploading the input folder.
-            Path userFile = cacheFile.resolveSibling("user");
-            byte[] hash = MessageDigest.getInstance("SHA-256").digest(token.getBytes());
-            if(Files.exists(userFile) && !Arrays.equals(Files.readAllBytes(userFile), hash)) {
-                // Delete all files in directory
-                try(var files = Files.list(userFile.resolve(".."))) {
-                    for(Path file : Utils.iterate(files.filter(Files::isRegularFile)))
-                        Files.delete(file);
-                }
-            }
-            Files.createDirectories(cacheFile.resolve(".."));
-            Files.write(userFile, hash);
+            checkUserFile(cacheFile.resolve(".."), token);
 
             // Does the input cache (still) exist?
             if(Files.exists(cacheFile))
                 return Files.readString(cacheFile);
-            Console.log("Fetching input...");
+            synchronized(Console.class) {
+                Console.log("Fetching input for day {}...", day);
+            }
             String input = HttpRequest.get("https://adventofcode.com/"+year+"/day/"+day+"/input")
                     .addCookie("session", token)
                     .send().text();
@@ -492,6 +646,24 @@ public abstract class Solution {
         } catch(NoSuchAlgorithmException e) {
             throw new InvalidInputException("Why is SHA-256 not available on your system???", e);
         }
+    }
+
+    private static synchronized void checkUserFile(Path dir, String token) throws IOException, NoSuchAlgorithmException {
+        // Keep a file with the hashed session token in the directory of the input files. If the
+        // token changes, we have to reload the input files as the user may have changed.
+        // Hash the token to prevent a user accidentally publishing their token to the public
+        // by uploading the input folder.
+        Path userFile = dir.resolve("user");
+        byte[] hash = MessageDigest.getInstance("SHA-256").digest(token.getBytes());
+        if(Files.exists(userFile) && !Arrays.equals(Files.readAllBytes(userFile), hash)) {
+            // Delete all files in directory
+            try(var files = Files.list(userFile.resolve(".."))) {
+                for(Path file : Utils.iterate(files.filter(Files::isRegularFile)))
+                    Files.delete(file);
+            }
+        }
+        Files.createDirectories(dir);
+        Files.write(userFile, hash);
     }
 
     /**
@@ -642,7 +814,7 @@ public abstract class Solution {
      */
     public static String run(Class<? extends Solution> type, int task, int day, int year, boolean exampleInput) throws InvalidInputException {
         Config config = Config.read("config.json");
-        return run(type, task, day, year, config.tokenValue(), exampleInput, config.showInputStats());
+        return run(type, task, day, year, config.tokenValue(), exampleInput, 1, config.showInputStats());
     }
 
     /**
@@ -704,7 +876,7 @@ public abstract class Solution {
      */
     public static String run(int task, int day, int year, boolean exampleInput) throws InvalidInputException {
         Config config = Config.read("config.json");
-        return run(config.classPattern(), task, day, year, config.tokenValue(), exampleInput, config.showInputStats());
+        return run(config.classPattern(), task, day, year, config.tokenValue(), exampleInput, 1, config.showInputStats());
     }
 
 
@@ -730,6 +902,9 @@ public abstract class Solution {
         parser.addOption(null, "cls", true, "Overrides config; fully qualified name pattern of your solution class, where {day}, {0_day}, {year} and {full_year} will be replaced with the day of month, the day of month padded with a 0 if needed, the last two digits of the year or the full year number, respectively.");
         parser.addOption('s', "inputStats", true, "Overrides config; boolean value ('true' for true) whether to print input stats before execution, default is true");
         parser.addOption('x', "example", false, "Use example input instead of real input. (Note that the detection for example input may not always be correct)");
+        parser.addOption('a', "all", false, "Run all tasks up to (including) the tasks of the selected date and measure the computation time");
+        parser.addOption(null, "check", false, "Check all results when running all tasks with --all. Ignored when not profiling");
+        parser.addOption('r', "repeat", true, "Repeat the execution so many times and take the average time");
         Options options = parser.parse(args);
 
         try {
@@ -765,7 +940,9 @@ public abstract class Solution {
             if(year >= 0 && year < 100)
                 year += 2000;
 
-            run(classPattern, options.getIntOr("task", -1), options.getIntOr("day", -1), year, token, options.is("example"), inputStats);
+            if(options.is("all"))
+                runAll(classPattern, options.getIntOr("day", -1), year, token, options.getIntOr("repeat", 1), options.is("check"));
+            else run(classPattern, options.getIntOr("task", -1), options.getIntOr("day", -1), year, token, options.is("example"), options.getIntOr("repeat", 1), inputStats);
         } catch(InvalidInputException e) {
             Console.error(e.getMessage());
         }
