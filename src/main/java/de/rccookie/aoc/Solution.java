@@ -630,7 +630,7 @@ public abstract class Solution {
      */
     public static String getInput(int day, int year, String token, Path cacheFile) {
         try {
-            checkUserFile(cacheFile.resolve(".."), token);
+            checkUserFile(cacheFile.toAbsolutePath().normalize().getParent(), token);
 
             // Does the input cache (still) exist?
             if(Files.exists(cacheFile))
@@ -646,7 +646,6 @@ public abstract class Solution {
             if(input.startsWith("Please don't repeatedly request this endpoint before it unlocks!"))
                 throw new InvalidInputException("Puzzle "+day+" is not yet unlocked");
             // Store the input, so we don't have to load it every time
-            Files.createDirectories(cacheFile.resolve(".."));
             Files.writeString(cacheFile, input);
             return input;
         } catch(IOException e) {
@@ -661,11 +660,12 @@ public abstract class Solution {
         // token changes, we have to reload the input files as the user may have changed.
         // Hash the token to prevent a user accidentally publishing their token to the public
         // by uploading the input folder.
+        Console.mapDebug("User file directory", dir);
         Path userFile = dir.resolve("user");
         byte[] hash = MessageDigest.getInstance("SHA-256").digest(token.getBytes());
         if(Files.exists(userFile) && !Arrays.equals(Files.readAllBytes(userFile), hash)) {
             // Delete all files in directory
-            try(var files = Files.list(userFile.resolve(".."))) {
+            try(var files = Files.list(userFile.toAbsolutePath().normalize().getParent())) {
                 for(Path file : Utils.iterate(files.filter(Files::isRegularFile)))
                     Files.delete(file);
             }
@@ -706,7 +706,7 @@ public abstract class Solution {
             String input = (i < article.children.size() ? article.child(i) : article.getElementByTag("pre")).text();
 
             // Store the input, so we don't have to load it every time
-            Files.createDirectories(cacheFile.resolve(".."));
+            Files.createDirectories(cacheFile.toAbsolutePath().normalize().getParent());
             Files.writeString(cacheFile, input);
             return input;
         } catch(IOException e) {
