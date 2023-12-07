@@ -633,8 +633,17 @@ public abstract class Solution {
             checkUserFile(cacheFile.toAbsolutePath().normalize().getParent(), token);
 
             // Does the input cache (still) exist?
-            if(Files.exists(cacheFile))
-                return Files.readString(cacheFile);
+            if(Files.exists(cacheFile)) {
+                // If the user pasted some text, he may well have forgotten to include the final newline (which may break his own program).
+                // In this case we add the newline back.
+                String input = Files.readString(cacheFile);
+                if(!input.endsWith("\n")) {
+                    input += "\n";
+                    Files.writeString(cacheFile, input);
+                }
+                return input;
+            }
+
             synchronized(Console.class) {
                 Console.log("Fetching input for day {}...", day);
             }
@@ -688,8 +697,16 @@ public abstract class Solution {
             // No need to check for specific user - same for everyone
 
             // Does the input cache (still) exist?
-            if(Files.exists(cacheFile))
-                return Files.readString(cacheFile);
+            if(Files.exists(cacheFile)) {
+                // If the user pasted some text, he may well have forgotten to include the final newline (which may break his own program).
+                // In this case we add the newline back.
+                String input = Files.readString(cacheFile);
+                if(!input.endsWith("\n")) {
+                    input += "\n";
+                    Files.writeString(cacheFile, input);
+                }
+                return input;
+            }
 
             Console.log("Fetching example input...");
             Node article = HttpRequest.get("https://adventofcode.com/" + year + "/day/" + day)
@@ -704,11 +721,23 @@ public abstract class Solution {
 
             String input = (i < article.children.size() ? article.child(i) : article.getElementByTag("pre")).text();
 
+            System.out.println();
+            Console.warn("The following code block was identified as example:");
+            System.out.print(Console.colored(input, Attribute.BOLD())); // No printLN because input ends with newline
+            Console.warn("If this is incorrect, please paste the correct example input into", cacheFile);
+
+            // Wait a moment for the user to acknowledge in case there follows a lot of output and this will be off the screen
+            for(int j=0; j<2; j++) {
+                System.out.print(".");
+                Thread.sleep(1000);
+            }
+            System.out.println(".");
+
             // Store the input, so we don't have to load it every time
             Files.createDirectories(cacheFile.toAbsolutePath().normalize().getParent());
             Files.writeString(cacheFile, input);
             return input;
-        } catch(IOException e) {
+        } catch(IOException|InterruptedException e) {
             throw Utils.rethrow(e);
         }
     }
