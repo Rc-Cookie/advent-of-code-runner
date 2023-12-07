@@ -316,6 +316,7 @@ public abstract class Solution {
             Console.error("Not implemented");
         }
 
+        System.out.println();
         Console.map("Duration"+(repeatCount>1?" (average of "+repeatCount+" runs)":""), (Mathf.sumL(durations) / 1000000.0) + "ms");
         if(checkResults && allCorrect)
             Console.log("All results correct");
@@ -332,7 +333,7 @@ public abstract class Solution {
      * @return A table renderer to show the given data as a table
      */
     @NotNull
-    private static TableRenderer createTable(long[] durations) {
+    static TableRenderer createTable(long[] durations) {
         TableRenderer table = new TableRenderer();
         table.horizontalAlignment(Alignment.RIGHT);
         table.columnLabels("Task 1", "Task 2");
@@ -916,6 +917,25 @@ public abstract class Solution {
     }
 
 
+    static ArgsParser createGenericArgsParser() {
+        ArgsParser parser = new ArgsParser();
+        parser.setName("Advent of Code Runner");
+        parser.addDefaults();
+        parser.setArgsMode(ArgsParser.ArgsMode.NOT_ALLOWED);
+        parser.addOption('t', "task", true, "Specify a specific task that should be ran, rather than running task 2 iff task 1 is completed otherwise task 1");
+        parser.addOption('d', "day", true, "Specify a specific day of month whose task should be executed, rather than today's task");
+        parser.addOption('y', "year", true, "Specify a specific year (yy or yyyy) whose task should be executed, rather than running this year's tasks");
+        parser.addOption('c', "config", true, "Path to config file, default is config.json");
+        parser.addOption(null, "token", true, "Overrides config; access token used to authenticate on adventofcode.com");
+        parser.addOption('s', "inputStats", true, "Overrides config; boolean value ('true' for true) whether to print input stats before execution, default is true");
+        parser.addOption('x', "example", false, "Use example input instead of real input. (Note that the detection for example input may not always be correct)");
+        parser.addOption('a', "all", false, "Run all tasks up to (including) the tasks of the selected date and measure the computation time");
+        parser.addOption(null, "check", false, "Check all results when running all tasks with --all. Ignored when not profiling");
+        parser.addOption('r', "repeat", true, "Repeat the execution so many times and take the average time");
+        return parser;
+    }
+
+
     /**
      * Runs a puzzle solution for a date. If not differently specified, this method does
      * exactly the same as {@link #run()}; the date of the puzzle is today's date and
@@ -928,19 +948,13 @@ public abstract class Solution {
      * @param args Command line arguments
      */
     public static void main(String[] args) {
-        ArgsParser parser = new ArgsParser();
-        parser.addDefaults();
-        parser.addOption('t', "task", true, "Specify a specific task that should be ran, rather than running task 2 iff implemented otherwise task 1");
-        parser.addOption('d', "day", true, "Specify a specific day of month whose task should be executed, rather than today's task");
-        parser.addOption('y', "year", true, "Specify a specific year (yy or yyyy) whose task should be executed, rather than running this year's tasks");
-        parser.addOption('c', "config", true, "Path to config file, default is config.json");
-        parser.addOption(null, "token", true, "Overrides config; access token used to authenticate on adventofcode.com");
+        ArgsParser parser = createGenericArgsParser();
+        parser.setDescription("""
+                        Runs your java advent of code solutions.
+                        Automatically downloads input or example files and submits your solution.
+
+                        Usage: aoc-run [options]""");
         parser.addOption(null, "cls", true, "Overrides config; fully qualified name pattern of your solution class, where {day}, {0_day}, {year} and {full_year} will be replaced with the day of month, the day of month padded with a 0 if needed, the last two digits of the year or the full year number, respectively.");
-        parser.addOption('s', "inputStats", true, "Overrides config; boolean value ('true' for true) whether to print input stats before execution, default is true");
-        parser.addOption('x', "example", false, "Use example input instead of real input. (Note that the detection for example input may not always be correct)");
-        parser.addOption('a', "all", false, "Run all tasks up to (including) the tasks of the selected date and measure the computation time");
-        parser.addOption(null, "check", false, "Check all results when running all tasks with --all. Ignored when not profiling");
-        parser.addOption('r', "repeat", true, "Repeat the execution so many times and take the average time");
         Options options = parser.parse(args);
 
         try {
@@ -981,6 +995,8 @@ public abstract class Solution {
             else run(classPattern, options.getIntOr("task", -1), options.getIntOr("day", -1), year, token, options.is("example"), options.getIntOr("repeat", 1), inputStats);
         } catch(InvalidInputException e) {
             Console.error(e.getMessage());
+            if(args.length == 0)
+                Console.error("Run --help for more info");
         }
     }
 

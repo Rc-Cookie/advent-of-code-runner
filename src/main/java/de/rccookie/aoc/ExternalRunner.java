@@ -6,10 +6,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Calendar;
 import java.util.IntSummaryStatistics;
+import java.util.stream.Stream;
 
 import com.diogonunes.jcolor.Attribute;
 import de.rccookie.json.Default;
 import de.rccookie.json.Json;
+import de.rccookie.math.Mathf;
 import de.rccookie.util.ArgsParser;
 import de.rccookie.util.Console;
 import de.rccookie.util.Options;
@@ -30,10 +32,101 @@ public final class ExternalRunner {
                +" | Line lengths: "+lengths.getMin()+(lengths.getMin() == lengths.getMax() ? "" : " - "+lengths.getMax());
     }
 
-    private static String run(String command, int task, int day, int year, String token, boolean inputStats) throws Solution.InvalidInputException {
 
+    private static void runAll(String command, int day, int year, String token, int repeatCount, boolean checkResults) throws Solution.InvalidInputException {
         // Validate token syntax
         if(token.length() != 128)
+            throw new Solution.InvalidInputException("Invalid token, expected 128 characters");
+
+        // Execute at least once
+        if(repeatCount < 1)
+            throw new Solution.InvalidInputException("Repeat count < 1");
+
+        // Get date of puzzle if not already given
+        if(day <= 0)
+            day = Solution.CALENDAR.get(Calendar.DAY_OF_MONTH);
+        if(year <= 0)
+            year = Solution.CALENDAR.get(Calendar.YEAR);
+
+        // Create instances of solutions and initialize
+        ProcessBuilder[] processes = new ProcessBuilder[day * 2];
+        String[] correctSolutions = new String[day * 2];
+        int _year = year;
+        if(checkResults)
+            Console.log("Loading puzzle solutions...");
+        // Run in parallel -> can load multiple inputs at once
+        Stream.iterate(0, i -> i + 1).limit(day).parallel().forEach(i ->  {
+            Path inputFile = Path.of("input", _year+"", (i+1)+".txt");
+            Solution.getInput(i+1, _year, token, inputFile);
+
+            processes[2*i] = createProcess(command, 1, i+1, _year, inputFile);
+            processes[2*i+1] = createProcess(command, 2, i+1, _year, inputFile);
+
+            if(checkResults) {
+                String[] correct = Solution.getSolutions(i + 1, _year, token);
+                System.arraycopy(correct, 0, correctSolutions, 2 * i, correct.length);
+            }
+        });
+
+        Console.log("Profiling mode, hiding regular program output (stderr will be shown)");
+
+        long[] durations = new long[processes.length];
+        boolean allCorrect = true;
+        processLoop: for(int i=0; i<processes.length; i++) try {
+
+            Console.log("Running day {} task {}...", i/2 + 1, i%2 + 1);
+            Stopwatch watch = new Stopwatch().start();
+
+            String result = null;
+            for(int j=0; j<repeatCount; j++) {
+                Process p = processes[i].start();
+
+                StringBuilder savedOutput = new StringBuilder();
+                try(BufferedReader output = p.inputReader()) {
+                    String line = output.readLine();
+                    while(line != null) {
+                        savedOutput.append(line).append('\n');
+                        result = line;
+                        line = output.readLine();
+                    }
+                }
+                int exitCode = p.waitFor();
+                if(exitCode != 0) {
+                    System.out.println(savedOutput);
+                    Console.error("Task failed with exit code {}", exitCode);
+                    continue processLoop;
+                }
+            }
+            durations[i] = watch.getPassedNanos() / repeatCount;
+
+            if(checkResults && correctSolutions[i] != null) {
+                if(result == null) {
+                    Console.error("Incorrect result - no result at all. The last line printed to stdout is treated as result.");
+                    allCorrect = false;
+                }
+                else if(!result.equals(correctSolutions[i])) {
+                    Console.error("Incorrect result, expected {} but got {}", correctSolutions[i], result);
+                    allCorrect = false;
+                }
+            }
+
+        } catch(IOException|InterruptedException e) {
+            throw Utils.rethrow(e);
+        }
+
+        System.out.println();
+        Console.map("Duration"+(repeatCount>1?" (average of "+repeatCount+" runs)":""), (Mathf.sumL(durations) / 1000000.0) + "ms");
+        if(checkResults && allCorrect)
+            Console.log("All results correct");
+
+        // Show the duration of each individual task in a table
+        System.out.println(Solution.createTable(durations));
+    }
+
+    private static String run(String command, int task, int day, int year, String token, boolean exampleInput, int repeatCount, boolean inputStats) throws Solution.InvalidInputException {
+
+        // Validate token syntax (don't need a token for example input - not for input download, and won't submit)
+        if((!exampleInput || task <= 0) && token.length() != 128)
             throw new Solution.InvalidInputException("Invalid token, expected 128 characters");
 
         // Get date of puzzle if not already given
@@ -64,34 +157,42 @@ public final class ExternalRunner {
         }
 
         // Read input file or fetch from website and store
-        Path inputFile = Path.of("input", year+"", day+".txt");
-        String input = Solution.getInput(day, year, token, inputFile);
+        Path inputFile;
+        String input;
+        if(exampleInput) {
+            inputFile = Path.of("input", year+"", "examples", day+".txt");
+            input = Solution.getExampleInput(day, year, inputFile);
+        }
+        else {
+            inputFile = Path.of("input", year+"", day+".txt");
+            input = Solution.getInput(day, year, token, inputFile);
+        }
 
         if(inputStats)
             Console.log(getInputStats(input));
         Console.log("Running task {} of puzzle {}{}", task, day, year != Solution.CALENDAR.get(Calendar.YEAR) ? " from year "+year : "");
 
-        String[] cmd = buildCommand(command, task, day, year, inputFile);
+        ProcessBuilder process = createProcess(command, task, day, year, inputFile);
 
         Stopwatch watch = new Stopwatch().start();
         String result = null;
-        int exitCode;
+        int exitCode = 0;
         try {
             System.out.println("----------- Program output -----------");
-            Process p = new ProcessBuilder(cmd)
-                    .redirectInput(inputFile.toFile())
-                    .redirectError(ProcessBuilder.Redirect.INHERIT)
-                    .start();
+            for(int j=0; j<repeatCount; j++) {
+                Process p = process.start();
 
-            try(BufferedReader output = p.inputReader()) {
-                String line = output.readLine();
-                while(line != null) {
-                    System.out.println(line);
-                    result = line;
-                    line = output.readLine();
+                try(BufferedReader output = p.inputReader()) {
+                    String line = output.readLine();
+                    while(line != null) {
+                        System.out.println(line);
+                        result = line;
+                        line = output.readLine();
+                    }
                 }
+                exitCode = p.waitFor();
+                if(exitCode != 0) break;
             }
-            exitCode = p.waitFor();
         } catch(IOException|InterruptedException e) {
             throw Utils.rethrow(e);
         }
@@ -100,17 +201,16 @@ public final class ExternalRunner {
             System.exit(exitCode);
 
         // Print results
-        Console.map("Result", Console.colored(result != null ? result : "null", Attribute.BOLD()));
+        Console.map("Result", Console.colored(result != null ? result : "No result found - the last line printed to stdout is treated as result", Attribute.BOLD()));
         Console.map("Duration", watch.getPassedNanos() / 1000000.0 + "ms");
         if(result == null || result.isBlank() || result.length() > 30)
             // null, blank string or long output won't be the solution, so just exit
             return result;
 
-        return Solution.maybeSubmit(task, day, year, token, solutions, result, t -> run(command, t, _day, _year, token, inputStats));
+        return Solution.maybeSubmit(task, day, year, token, solutions, result, t -> run(command, t, _day, _year, token, exampleInput, repeatCount, false));
     }
 
-
-    private static String[] buildCommand(String template, int task, int day, int year, Path inputFile) {
+    private static ProcessBuilder createProcess(String cmdTemplate, int task, int day, int year, Path inputFile) {
         // Build command from pattern
         String[] cmd = new String[3];
         boolean win = System.getProperty("os.name").toLowerCase().contains("win");
@@ -122,7 +222,7 @@ public final class ExternalRunner {
             cmd[0] = "bash";
             cmd[1] = "-c";
         }
-        cmd[2] = template.replace("{day}", ""+day)
+        cmd[2] = cmdTemplate.replace("{day}", ""+day)
                 .replace("{0_day}", String.format("%02d", day))
                 .replace("{year}", String.format("%02d", year % 100))
                 .replace("{full_year}", ""+year)
@@ -130,17 +230,20 @@ public final class ExternalRunner {
                 .replace("{file}", ""+inputFile)
                 .replace("{abs_file}", ""+inputFile.toAbsolutePath())
                 .replace("{input}", win ? "$(Get-Content \""+inputFile+"\" -Raw)" : "\"$(<"+inputFile+")\"");
-        return cmd;
+
+        return new ProcessBuilder(cmd)
+                .redirectInput(inputFile.toFile())
+                .redirectError(ProcessBuilder.Redirect.INHERIT);
     }
 
     public static void main(String[] args) {
-        ArgsParser parser = new ArgsParser();
-        parser.addDefaults();
-        parser.addOption('t', "task", true, "Specify a specific task that should be ran, rather than running task 2 iff task 1 is completed otherwise task 1");
-        parser.addOption('d', "day", true, "Specify a specific day of month whose task should be executed, rather than today's task");
-        parser.addOption('y', "year", true, "Specify a specific year (yy or yyyy) whose task should be executed, rather than running this year's tasks");
-        parser.addOption('c', "config", true, "Path to config file, default is config.json");
-        parser.addOption(null, "token", true, "Overrides config; access token used to authenticate on adventofcode.com");
+        ArgsParser parser = Solution.createGenericArgsParser();
+        parser.setDescription("""
+                        Runs your advent of code solutions (which can be coded in any programming language,
+                        as long as you can run it from the terminal).
+                        Automatically downloads input or example files and submits your solution.
+
+                        Usage: aoc-run [options]""");
         parser.addOption(null, "cmd", true, """
                         Overrides config; command (executable in bash or powershell, depending on your system) to execute to run your program, where specific patterns will be replaced (e.g. in file name or params):
                          - {day}: day of puzzle
@@ -151,7 +254,6 @@ public final class ExternalRunner {
                          - {file}: Filename of the input file (note that the input file is also piped in as stdin
                          - {abs_file}: Absolute filename of the input file
                          - {input}: The contents of the input file (to be passed as parameter to the program) (note that the input file is also piped in as stdin)""");
-        parser.addOption('s', "inputStats", true, "Overrides config; boolean value ('true' for true) whether to print input stats before execution, default is true");
         Options options = parser.parse(args);
 
         try {
@@ -187,9 +289,13 @@ public final class ExternalRunner {
             if(year >= 0 && year < 100)
                 year += 2000;
 
-            run(command, options.getIntOr("task", -1), options.getIntOr("day", -1), year, token, inputStats);
+            if(options.is("all"))
+                runAll(command, options.getIntOr("day", -1), year, token, options.getIntOr("repeat", 1), options.is("check"));
+            else run(command, options.getIntOr("task", -1), options.getIntOr("day", -1), year, token, options.is("example"), options.getIntOr("repeat", 1), inputStats);
         } catch(Solution.InvalidInputException e) {
             Console.error(e.getMessage());
+            if(args.length == 0)
+                Console.error("Run --help for more info");
         }
     }
 
