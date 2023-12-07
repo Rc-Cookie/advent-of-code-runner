@@ -643,6 +643,8 @@ public abstract class Solution {
                     .send().text();
             if(input.startsWith("Puzzle inputs differ per user"))
                 throw new InvalidInputException("Invalid token, cannot receive input data");
+            if(input.startsWith("Please don't repeatedly request this endpoint before it unlocks!"))
+                throw new InvalidInputException("Puzzle "+day+" is not yet unlocked");
             // Store the input, so we don't have to load it every time
             Files.createDirectories(cacheFile.resolve(".."));
             Files.writeString(cacheFile, input);
