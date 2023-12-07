@@ -20,6 +20,7 @@ import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
+import java.util.TimeZone;
 import java.util.function.IntFunction;
 import java.util.function.ToLongFunction;
 import java.util.stream.Stream;
@@ -79,6 +80,11 @@ import org.jetbrains.annotations.Range;
  * @author RcCookie
  */
 public abstract class Solution {
+
+    /**
+     * Calendar in the time zone that is being used for puzzle releases.
+     */
+    static final Calendar CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("EST"));
 
     /**
      * The raw input string.
@@ -244,9 +250,9 @@ public abstract class Solution {
 
         // Get date of puzzle if not already given
         if(day <= 0)
-            day = Calendar.getInstance().get(Calendar.DAY_OF_MONTH);
+            day = CALENDAR.get(Calendar.DAY_OF_MONTH);
         if(year <= 0)
-            year = Calendar.getInstance().get(Calendar.YEAR);
+            year = CALENDAR.get(Calendar.YEAR);
 
         // Create instances of solutions and initialize
         Solution[] solutions = new Solution[day * 2];
@@ -369,9 +375,9 @@ public abstract class Solution {
 
         // Get date of puzzle if not already given
         if(day <= 0)
-            day = Calendar.getInstance().get(Calendar.DAY_OF_MONTH);
+            day = CALENDAR.get(Calendar.DAY_OF_MONTH);
         if(year <= 0)
-            year = Calendar.getInstance().get(Calendar.YEAR);
+            year = CALENDAR.get(Calendar.YEAR);
 
         // Create instance of solution
         Solution solution = createInstance(type);
@@ -397,7 +403,7 @@ public abstract class Solution {
         if(inputStats)
             Console.log(solution.getInputStats());
 
-        Console.log("Running puzzle {}{}", day, year != Calendar.getInstance().get(Calendar.YEAR) ? " from year "+year : "");
+        Console.log("Running puzzle {}{}", day, year != CALENDAR.get(Calendar.YEAR) ? " from year "+year : "");
 
         // Give the solution a chance to do some preparation
         solution.load();
@@ -530,9 +536,9 @@ public abstract class Solution {
     private static String run(String classPattern, int task, int day, int year, String token, boolean exampleInput, int repeatCount, boolean inputStats) throws InvalidInputException {
         // Get date if not given to resolve class
         if(day <= 0)
-            day = Calendar.getInstance().get(Calendar.DAY_OF_MONTH);
+            day = CALENDAR.get(Calendar.DAY_OF_MONTH);
         if(year <= 0)
-            year = Calendar.getInstance().get(Calendar.YEAR);
+            year = CALENDAR.get(Calendar.YEAR);
 
         // Run with the resolved class
         return run(resolveType(classPattern, day, year), task, day, year, token, exampleInput, repeatCount, inputStats);

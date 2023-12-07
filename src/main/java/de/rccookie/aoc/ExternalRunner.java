@@ -38,9 +38,9 @@ public final class ExternalRunner {
 
         // Get date of puzzle if not already given
         if(day <= 0)
-            day = Calendar.getInstance().get(Calendar.DAY_OF_MONTH);
+            day = Solution.CALENDAR.get(Calendar.DAY_OF_MONTH);
         if(year <= 0)
-            year = Calendar.getInstance().get(Calendar.YEAR);
+            year = Solution.CALENDAR.get(Calendar.YEAR);
         int _day = day, _year = year;
 
         Wrapper<String[]> solutions = new Wrapper<>(null);
@@ -67,6 +67,7 @@ public final class ExternalRunner {
 
         if(inputStats)
             Console.log(getInputStats(input));
+        Console.log("Running task {} of puzzle {}{}", task, day, year != Solution.CALENDAR.get(Calendar.YEAR) ? " from year "+year : "");
 
         String[] cmd = buildCommand(command, task, day, year, inputFile);
 
@@ -74,7 +75,7 @@ public final class ExternalRunner {
         String result = null;
         int exitCode;
         try {
-            System.out.println("-------- Program output --------");
+            System.out.println("----------- Program output -----------");
             Process p = new ProcessBuilder(cmd)
                     .redirectInput(inputFile.toFile())
                     .redirectError(ProcessBuilder.Redirect.INHERIT)
