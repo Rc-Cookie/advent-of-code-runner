@@ -48,6 +48,7 @@ public final class ExternalRunner {
             // In the background, find which parts of the puzzle were already solved and get their solutions
             new Thread(() -> {
                 String[] s = Solution.getSolutions(_day, _year, token);
+                Console.mapDebug("Solutions", solutions.value);
                 synchronized(solutions) {
                     solutions.value = s;
                     solutions.notifyAll();
@@ -58,7 +59,8 @@ public final class ExternalRunner {
             // We need to know which parts are already solved to find out which task to execute. Get the solutions
             // to them in the same request
             solutions.value = Solution.getSolutions(day, year, token);
-            task = solutions.value.length + 1;
+            task = Math.min(2, solutions.value.length + 1);
+            Console.mapDebug("Solutions", solutions.value);
         }
 
         // Read input file or fetch from website and store
