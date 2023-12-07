@@ -442,7 +442,7 @@ public abstract class Solution {
         // Print results
         String result = unpackResult(resultObj);
         Console.map("Result (task "+task+")", Console.colored(result, Attribute.BOLD()));
-        Console.map("Duration", watch.getPassedNanos() / repeatCount / 1000000.0 + "ms");
+        Console.map("Duration"+(repeatCount>1?" (average of "+repeatCount+" runs)":""), (watch.getPassedNanos() / repeatCount / 1000000.0) + "ms");
         if(exampleInput || resultObj == null || result.isBlank())
             // null or blank string won't be the solution, so just exit
             return resultObj == null ? null : result;
@@ -660,7 +660,6 @@ public abstract class Solution {
         // token changes, we have to reload the input files as the user may have changed.
         // Hash the token to prevent a user accidentally publishing their token to the public
         // by uploading the input folder.
-        Console.mapDebug("User file directory", dir);
         Path userFile = dir.resolve("user");
         byte[] hash = MessageDigest.getInstance("SHA-256").digest(token.getBytes());
         if(Files.exists(userFile) && !Arrays.equals(Files.readAllBytes(userFile), hash)) {
