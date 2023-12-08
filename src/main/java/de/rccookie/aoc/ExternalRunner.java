@@ -242,7 +242,9 @@ public final class ExternalRunner {
                 .replace("{task}", ""+task)
                 .replace("{file}", ""+inputFile)
                 .replace("{abs_file}", ""+inputFile.toAbsolutePath())
-                .replace("{input}", win ? "$(Get-Content '"+inputFile.toAbsolutePath()+"' -Raw)" : "$(<'"+inputFile.toAbsolutePath()+"')");
+                .replace("{input}", win ? "$(Get-Content '"+inputFile.toAbsolutePath()+"' -Raw)" : "\"$(<'"+inputFile.toAbsolutePath()+"')\"");
+
+        Console.mapDebug("Command for day "+day+" task "+task, cmd[2]);
 
         return new ProcessBuilder(cmd)
                 .redirectInput(inputFile.toFile())
