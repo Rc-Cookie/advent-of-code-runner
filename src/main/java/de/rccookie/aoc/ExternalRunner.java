@@ -229,8 +229,9 @@ public final class ExternalRunner {
                 .replace("{task}", ""+task)
                 .replace("{file}", ""+inputFile)
                 .replace("{abs_file}", ""+inputFile.toAbsolutePath())
-                .replace("{input}", win ? "$(Get-Content \""+inputFile+"\" -Raw)" : "\"$(<"+inputFile+")\"");
+                .replace("{input}", win ? "$(Get-Content '"+inputFile.toAbsolutePath()+"' -Raw)" : "'$(<"+inputFile.toAbsolutePath()+")'");
 
+        Console.map("Command", cmd);
         return new ProcessBuilder(cmd)
                 .redirectInput(inputFile.toFile())
                 .redirectError(ProcessBuilder.Redirect.INHERIT);
