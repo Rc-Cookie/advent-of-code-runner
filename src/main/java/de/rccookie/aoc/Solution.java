@@ -1022,7 +1022,7 @@ public abstract class Solution {
         @NotNull
         private static Config read(String path) {
             try {
-                return Json.load("config.json").as(Config.class);
+                return Json.load(path).as(Config.class);
             } catch(Exception e) {
                 throw new InvalidInputException("Failed to parse "+path + (e.getMessage() != null ? ": "+e.getMessage() : "")+"\nCheck the README.md file to get detail on the structure of the config file.", e);
             }
