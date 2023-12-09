@@ -81,6 +81,9 @@ public final class ExternalRunner {
 
         long[] durations = new long[processes.length];
         boolean allCorrect = true;
+        boolean[] correct = new boolean[processes.length];
+        Arrays.fill(correct, true);
+
         processLoop: for(int i=0; i<processes.length; i++) try {
             if(processes[i] == null) continue;
 
@@ -112,11 +115,11 @@ public final class ExternalRunner {
             if(checkResults && correctSolutions[i] != null) {
                 if(result == null) {
                     Console.error("Incorrect result - no result at all. The last line printed to stdout is treated as result.");
-                    allCorrect = false;
+                    correct[i] = allCorrect = false;
                 }
                 else if(!result.equals(correctSolutions[i])) {
                     Console.error("Incorrect result, expected {} but got {}", correctSolutions[i], result);
-                    allCorrect = false;
+                    correct[i] = allCorrect = false;
                 }
             }
 
@@ -130,7 +133,9 @@ public final class ExternalRunner {
             Console.log("All results correct");
 
         // Show the duration of each individual task in a table
-        System.out.println(Solution.createTable(durations));
+        System.out.println(Solution.createTable(durations, correct));
+        if(!allCorrect)
+            Console.log("(*): Puzzle solution was incorrect");
     }
 
     private static String run(String[] commands, int task, int day, int year, String token, boolean exampleInput, int repeatCount, boolean inputStats) throws Solution.InvalidInputException {

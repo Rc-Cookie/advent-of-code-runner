@@ -262,7 +262,16 @@ public abstract class Solution {
             Console.log("Loading puzzle solutions...");
         // Run in parallel -> can load multiple inputs at once
         Stream.iterate(0, i->i+1).limit(day).parallel().forEach(i ->  {
-            Class<? extends Solution> type = resolveType(classPattern, i+1, _year);
+            Class<? extends Solution> type;
+            try {
+                type = resolveType(classPattern, i + 1, _year);
+            } catch(InvalidInputException e) {
+                synchronized(Console.class) {
+                    Console.error("Day", i + 1, "not implemented:");
+                    Console.error(e.getMessage());
+                }
+                return;
+            }
             solutions[2*i] = createInstance(type);
             solutions[2*i+1] = createInstance(type);
 
@@ -277,7 +286,8 @@ public abstract class Solution {
         });
 
         for(int i=0; i<solutions.length; i++) try {
-            solutions[i].load();
+            if(solutions[i] != null)
+                solutions[i].load();
         } catch(Exception e) {
             Console.error("Exception while loading day:", i/2 + 1);
             e.printStackTrace();
@@ -289,6 +299,9 @@ public abstract class Solution {
 
         long[] durations = new long[solutions.length];
         boolean allCorrect = true;
+        boolean[] correct = new boolean[solutions.length];
+        Arrays.fill(correct, true);
+
         for(int i=0; i<solutions.length; i++) try {
             if(solutions[i] == null) continue;
 
@@ -306,7 +319,7 @@ public abstract class Solution {
                 String result = unpackResult(resultObj);
                 if(!result.equals(correctSolutions[i])) {
                     Console.error("Incorrect result, expected {} but got {}", correctSolutions[i], result);
-                    allCorrect = false;
+                    correct[i] = allCorrect = false;
                 }
             }
 
@@ -322,7 +335,9 @@ public abstract class Solution {
             Console.log("All results correct");
 
         // Show the duration of each individual task in a table
-        System.out.println(createTable(durations));
+        System.out.println(createTable(durations, correct));
+        if(!allCorrect)
+            Console.log("(*): Puzzle solution was incorrect");
     }
 
     /**
@@ -333,7 +348,7 @@ public abstract class Solution {
      * @return A table renderer to show the given data as a table
      */
     @NotNull
-    static TableRenderer createTable(long[] durations) {
+    static TableRenderer createTable(long[] durations, boolean[] correct) {
         TableRenderer table = new TableRenderer();
         table.horizontalAlignment(Alignment.RIGHT);
         table.columnLabels("Task 1", "Task 2");
@@ -341,8 +356,8 @@ public abstract class Solution {
         for(int i = 0; i < durations.length / 2; i++) {
             rowLabels.add("Day "+(i+1));
             table.addRow(
-                    durations[2 * i] == 0 ? "N/A" : String.format(Locale.ROOT, "%.3fms", durations[2 * i] / 1000000.0),
-                    durations[2 * i + 1] == 0 ? "N/A" : String.format(Locale.ROOT, "%.3fms", durations[2*i+1] / 1000000.0)
+                    durations[2 * i] == 0 ? "N/A" : (correct[2*i] ? "" : "(*) ") + String.format(Locale.ROOT, "%.3fms", durations[2 * i] / 1000000.0),
+                    durations[2 * i + 1] == 0 ? "N/A" : (correct[2*i+1] ? "" : "(*) ") + String.format(Locale.ROOT, "%.3fms", durations[2*i+1] / 1000000.0)
             );
         }
         table.rowLabels(rowLabels);
