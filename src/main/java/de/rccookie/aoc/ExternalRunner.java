@@ -34,7 +34,7 @@ public final class ExternalRunner {
     }
 
 
-    private static void runAll(String[] commands, int day, int year, String token, int repeatCount, boolean checkResults) throws Solution.InvalidInputException {
+    private static void runAll(String[] commands, int day, int year, String token, int warmup, int repeatCount, boolean checkResults) throws Solution.InvalidInputException {
         // Validate token syntax
         if(token.length() != 128)
             throw new Solution.InvalidInputException("Invalid token, expected 128 characters");
@@ -42,6 +42,8 @@ public final class ExternalRunner {
         // Execute at least once
         if(repeatCount < 1)
             throw new Solution.InvalidInputException("Repeat count < 1");
+        if(warmup < 0)
+            throw new Solution.InvalidInputException("Warmup count < 0");
 
         // Get date of puzzle if not already given
         if(day <= 0)
@@ -88,6 +90,26 @@ public final class ExternalRunner {
             if(processes[i] == null) continue;
 
             Console.log("Running day {} task {}...", i/2 + 1, i%2 + 1);
+
+            for(int j=0; j<warmup; j++) {
+                Process p = processes[i].start();
+
+                StringBuilder savedOutput = new StringBuilder();
+                try(BufferedReader output = p.inputReader()) {
+                    String line = output.readLine();
+                    while(line != null) {
+                        savedOutput.append(line).append('\n');
+                        line = output.readLine();
+                    }
+                }
+                int exitCode = p.waitFor();
+                if(exitCode != 0) {
+                    System.out.println(savedOutput);
+                    Console.error("Task failed with exit code {}", exitCode);
+                    continue processLoop;
+                }
+            }
+
             Stopwatch watch = new Stopwatch().start();
 
             String result = null;
@@ -138,7 +160,7 @@ public final class ExternalRunner {
             Console.log("(*): Puzzle solution was incorrect");
     }
 
-    private static String run(String[] commands, int task, int day, int year, String token, boolean exampleInput, int repeatCount, boolean inputStats) throws Solution.InvalidInputException {
+    private static String run(String[] commands, int task, int day, int year, String token, boolean exampleInput, int warmup, int repeatCount, boolean inputStats) throws Solution.InvalidInputException {
 
         // Validate token syntax (don't need a token for example input - not for input download, and won't submit)
         if((!exampleInput || task <= 0) && token.length() != 128)
@@ -192,11 +214,18 @@ public final class ExternalRunner {
 
         ProcessBuilder process = createProcess(commands[day-1], task, day, year, inputFile);
 
-        Stopwatch watch = new Stopwatch().start();
+        Stopwatch watch = new Stopwatch();
         String result = null;
         int exitCode = 0;
         try {
             System.out.println("----------- Program output -----------");
+            for(int j=0; j<warmup; j++) {
+                Process p = process.start();
+                p.getInputStream().transferTo(System.out);
+                exitCode = p.waitFor();
+                if(exitCode != 0) break;
+            }
+            watch.start();
             for(int j=0; j<repeatCount; j++) {
                 Process p = process.start();
 
@@ -225,7 +254,7 @@ public final class ExternalRunner {
             // null, blank string or long output won't be the solution, so just exit
             return result;
 
-        return Solution.maybeSubmit(task, day, year, token, solutions, result, t -> run(commands, t, _day, _year, token, exampleInput, repeatCount, false));
+        return Solution.maybeSubmit(task, day, year, token, solutions, result, t -> run(commands, t, _day, _year, token, exampleInput, warmup, repeatCount, false));
     }
 
     private static ProcessBuilder createProcess(String cmdTemplate, int task, int day, int year, Path inputFile) {
@@ -313,8 +342,8 @@ public final class ExternalRunner {
                 year += 2000;
 
             if(options.is("all"))
-                runAll(commands, options.getIntOr("day", -1), year, token, options.getIntOr("repeat", 1), options.is("check"));
-            else run(commands, options.getIntOr("task", -1), options.getIntOr("day", -1), year, token, options.is("example"), options.getIntOr("repeat", 1), inputStats);
+                runAll(commands, options.getIntOr("day", -1), year, token, options.getIntOr("warmup", 0), options.getIntOr("repeat", 1), options.is("check"));
+            else run(commands, options.getIntOr("task", -1), options.getIntOr("day", -1), year, token, options.is("example"), options.getIntOr("warmup", 0), options.getIntOr("repeat", 1), inputStats);
         } catch(Solution.InvalidInputException e) {
             Console.error(e.getMessage());
             if(Console.isEnabled("debug"))

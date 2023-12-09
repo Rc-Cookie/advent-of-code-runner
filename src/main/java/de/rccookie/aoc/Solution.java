@@ -239,7 +239,7 @@ public abstract class Solution {
      * @param checkResults Whether to validate the results of the tasks (if the task has already been solved before)
      * @throws InvalidInputException If some input given is invalid
      */
-    private static void runAll(String classPattern, int day, int year, String token, int repeatCount, boolean checkResults) throws InvalidInputException {
+    private static void runAll(String classPattern, int day, int year, String token, int warmup, int repeatCount, boolean checkResults) throws InvalidInputException {
         // Validate token syntax
         if(token.length() != 128)
             throw new InvalidInputException("Invalid token, expected 128 characters");
@@ -247,6 +247,8 @@ public abstract class Solution {
         // Execute at least once
         if(repeatCount < 1)
             throw new InvalidInputException("Repeat count < 1");
+        if(warmup < 0)
+            throw new Solution.InvalidInputException("Warmup count < 0");
 
         // Get date of puzzle if not already given
         if(day <= 0)
@@ -306,6 +308,11 @@ public abstract class Solution {
             if(solutions[i] == null) continue;
 
             Console.log("Running day {} task {}...", i/2 + 1, i%2 + 1);
+            for(int j=0; j<warmup; j++) {
+                if(i % 2 == 0)
+                    solutions[i].task1();
+                else solutions[i].task2();
+            }
             Stopwatch watch = new Stopwatch().start();
             Object resultObj = null;
             for(int j=0; j<repeatCount; j++) {
@@ -379,7 +386,7 @@ public abstract class Solution {
      * @return The result computed by the solution class (may be wrong)
      * @throws InvalidInputException If some input given is invalid
      */
-    private static String run(Class<? extends Solution> type, int task, int day, int year, String token, boolean exampleInput, int repeatCount, boolean inputStats) throws InvalidInputException {
+    private static String run(Class<? extends Solution> type, int task, int day, int year, String token, boolean exampleInput, int warmup, int repeatCount, boolean inputStats) throws InvalidInputException {
 
         // Validate token syntax (don't need a token for example input - not for input download, and won't submit)
         if(!exampleInput && token.length() != 128)
@@ -388,6 +395,8 @@ public abstract class Solution {
         // Execute at least once
         if(repeatCount < 1)
             throw new InvalidInputException("Repeat count < 1");
+        if(warmup < 0)
+            throw new Solution.InvalidInputException("Warmup count < 0");
 
         // Get date of puzzle if not already given
         if(day <= 0)
@@ -426,26 +435,38 @@ public abstract class Solution {
 
         // Actually execute the task
         Object resultObj = null;
-        Stopwatch watch = new Stopwatch().start();
+        Stopwatch watch = new Stopwatch();
         if(task < 1 || task > 2) {
             // We don't know which one, so we execute task2(). If we get a NotImplemented error,
             // we know it cannot have been overridden by the user. Thus, then simply execute task1().
             try {
+                for(int i=0; i<warmup; i++)
+                    solution.task2();
+                watch.start();
                 for(int i=0; i<repeatCount; i++)
                     resultObj = solution.task2();
                 task = 2;
             } catch(NotImplemented n) {
-                watch.restart();
+                for(int i=0; i<warmup; i++)
+                    solution.task1();
+                watch.start();
                 for(int i=0; i<repeatCount; i++)
                     resultObj = solution.task1();
                 task = 1;
             }
         }
-        else if(task == 1)
+        else if(task == 1) {
+            for(int i=0; i<warmup; i++)
+                solution.task1();
+            watch.start();
             for(int i=0; i<repeatCount; i++)
                 resultObj = solution.task1();
+        }
         else {
             try {
+                for(int i=0; i<warmup; i++)
+                    solution.task2();
+                watch.start();
                 for(int i=0; i<repeatCount; i++)
                     resultObj = solution.task2();
             } catch(NotImplemented n) {
@@ -463,7 +484,7 @@ public abstract class Solution {
             // null or blank string won't be the solution, so just exit
             return resultObj == null ? null : result;
 
-        return maybeSubmit(task, day, year, token, solutions, result, t -> run(type, t, _day, _year, token, false, repeatCount, false));
+        return maybeSubmit(task, day, year, token, solutions, result, t -> run(type, t, _day, _year, token, false, warmup, repeatCount, false));
     }
 
     /**
@@ -549,7 +570,7 @@ public abstract class Solution {
      * @return The result computed by the solution class (may be wrong)
      * @throws InvalidInputException If some input given is invalid
      */
-    private static String run(String classPattern, int task, int day, int year, String token, boolean exampleInput, int repeatCount, boolean inputStats) throws InvalidInputException {
+    private static String run(String classPattern, int task, int day, int year, String token, boolean exampleInput, int warmup, int repeatCount, boolean inputStats) throws InvalidInputException {
         // Get date if not given to resolve class
         if(day <= 0)
             day = CALENDAR.get(Calendar.DAY_OF_MONTH);
@@ -557,7 +578,7 @@ public abstract class Solution {
             year = CALENDAR.get(Calendar.YEAR);
 
         // Run with the resolved class
-        return run(resolveType(classPattern, day, year), task, day, year, token, exampleInput, repeatCount, inputStats);
+        return run(resolveType(classPattern, day, year), task, day, year, token, exampleInput, warmup, repeatCount, inputStats);
     }
 
     /**
@@ -866,7 +887,7 @@ public abstract class Solution {
      */
     public static String run(Class<? extends Solution> type, int task, int day, int year, boolean exampleInput) throws InvalidInputException {
         Config config = Config.read("config.json");
-        return run(type, task, day, year, config.tokenValue(), exampleInput, 1, config.showInputStats());
+        return run(type, task, day, year, config.tokenValue(), exampleInput, 0, 1, config.showInputStats());
     }
 
     /**
@@ -928,7 +949,7 @@ public abstract class Solution {
      */
     public static String run(int task, int day, int year, boolean exampleInput) throws InvalidInputException {
         Config config = Config.read("config.json");
-        return run(config.classPattern(), task, day, year, config.tokenValue(), exampleInput, 1, config.showInputStats());
+        return run(config.classPattern(), task, day, year, config.tokenValue(), exampleInput, 0, 1, config.showInputStats());
     }
 
 
@@ -947,6 +968,7 @@ public abstract class Solution {
         parser.addOption('a', "all", false, "Run all tasks up to (including) the tasks of the selected date and measure the computation time");
         parser.addOption(null, "check", false, "Check all results when running all tasks with --all. Ignored when not profiling");
         parser.addOption('r', "repeat", true, "Repeat the execution so many times and take the average time");
+        parser.addOption('w', "warmup", true, "Repeat the execution so many times additionally before starting to measure time");
         return parser;
     }
 
@@ -1006,8 +1028,8 @@ public abstract class Solution {
                 year += 2000;
 
             if(options.is("all"))
-                runAll(classPattern, options.getIntOr("day", -1), year, token, options.getIntOr("repeat", 1), options.is("check"));
-            else run(classPattern, options.getIntOr("task", -1), options.getIntOr("day", -1), year, token, options.is("example"), options.getIntOr("repeat", 1), inputStats);
+                runAll(classPattern, options.getIntOr("day", -1), year, token, options.getIntOr("warmup", 0), options.getIntOr("repeat", 1), options.is("check"));
+            else run(classPattern, options.getIntOr("task", -1), options.getIntOr("day", -1), year, token, options.is("example"), options.getIntOr("warmup", 0), options.getIntOr("repeat", 1), inputStats);
         } catch(InvalidInputException e) {
             Console.error(e.getMessage());
             if(args.length == 0)
