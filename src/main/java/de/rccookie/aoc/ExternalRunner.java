@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.IntSummaryStatistics;
 import java.util.stream.Stream;
@@ -33,7 +34,7 @@ public final class ExternalRunner {
     }
 
 
-    private static void runAll(String command, int day, int year, String token, int repeatCount, boolean checkResults) throws Solution.InvalidInputException {
+    private static void runAll(String[] commands, int day, int year, String token, int repeatCount, boolean checkResults) throws Solution.InvalidInputException {
         // Validate token syntax
         if(token.length() != 128)
             throw new Solution.InvalidInputException("Invalid token, expected 128 characters");
@@ -48,6 +49,10 @@ public final class ExternalRunner {
         if(year <= 0)
             year = Solution.CALENDAR.get(Calendar.YEAR);
 
+        for(int i=0; i<day; i++)
+            if(i >= commands.length || commands[i] == null)
+                Console.error("No command specified for day {}, skipping", i+1);
+
         // Create instances of solutions and initialize
         ProcessBuilder[] processes = new ProcessBuilder[day * 2];
         String[] correctSolutions = new String[day * 2];
@@ -55,12 +60,16 @@ public final class ExternalRunner {
         if(checkResults)
             Console.log("Loading puzzle solutions...");
         // Run in parallel -> can load multiple inputs at once
-        Stream.iterate(0, i -> i + 1).limit(day).parallel().forEach(i ->  {
+        Stream.iterate(0, i -> i + 1)
+                .limit(Math.min(day, commands.length))
+                .parallel()
+                .filter(i -> commands[i] != null)
+                .forEach(i ->  {
             Path inputFile = Path.of("input", _year+"", (i+1)+".txt");
             Solution.getInput(i+1, _year, token, inputFile);
 
-            processes[2*i] = createProcess(command, 1, i+1, _year, inputFile);
-            processes[2*i+1] = createProcess(command, 2, i+1, _year, inputFile);
+            processes[2*i] = createProcess(commands[i], 1, i+1, _year, inputFile);
+            processes[2*i+1] = createProcess(commands[i], 2, i+1, _year, inputFile);
 
             if(checkResults) {
                 String[] correct = Solution.getSolutions(i + 1, _year, token);
@@ -73,6 +82,7 @@ public final class ExternalRunner {
         long[] durations = new long[processes.length];
         boolean allCorrect = true;
         processLoop: for(int i=0; i<processes.length; i++) try {
+            if(processes[i] == null) continue;
 
             Console.log("Running day {} task {}...", i/2 + 1, i%2 + 1);
             Stopwatch watch = new Stopwatch().start();
@@ -123,7 +133,7 @@ public final class ExternalRunner {
         System.out.println(Solution.createTable(durations));
     }
 
-    private static String run(String command, int task, int day, int year, String token, boolean exampleInput, int repeatCount, boolean inputStats) throws Solution.InvalidInputException {
+    private static String run(String[] commands, int task, int day, int year, String token, boolean exampleInput, int repeatCount, boolean inputStats) throws Solution.InvalidInputException {
 
         // Validate token syntax (don't need a token for example input - not for input download, and won't submit)
         if((!exampleInput || task <= 0) && token.length() != 128)
@@ -135,6 +145,9 @@ public final class ExternalRunner {
         if(year <= 0)
             year = Solution.CALENDAR.get(Calendar.YEAR);
         int _day = day, _year = year;
+
+        if(commands.length < day || commands[day-1] == null)
+            throw new Solution.InvalidInputException("No command specified for day "+day);
 
         Wrapper<String[]> solutions = new Wrapper<>(null);
         if(task > 0) {
@@ -172,7 +185,7 @@ public final class ExternalRunner {
             Console.log(getInputStats(input));
         Console.log("Running task {} of puzzle {}{}", task, day, year != Solution.CALENDAR.get(Calendar.YEAR) ? " from year "+year : "");
 
-        ProcessBuilder process = createProcess(command, task, day, year, inputFile);
+        ProcessBuilder process = createProcess(commands[day-1], task, day, year, inputFile);
 
         Stopwatch watch = new Stopwatch().start();
         String result = null;
@@ -202,12 +215,12 @@ public final class ExternalRunner {
 
         // Print results
         Console.map("Result", Console.colored(result != null ? result : "No result found - the last line printed to stdout is treated as result", Attribute.BOLD()));
-        Console.map("Duration", watch.getPassedNanos() / 1000000.0 + "ms");
+        Console.map("Duration", watch.getPassedNanos() / 1000000.0 / repeatCount + "ms");
         if(result == null || result.isBlank() || result.length() > 30)
             // null, blank string or long output won't be the solution, so just exit
             return result;
 
-        return Solution.maybeSubmit(task, day, year, token, solutions, result, t -> run(command, t, _day, _year, token, exampleInput, repeatCount, false));
+        return Solution.maybeSubmit(task, day, year, token, solutions, result, t -> run(commands, t, _day, _year, token, exampleInput, repeatCount, false));
     }
 
     private static ProcessBuilder createProcess(String cmdTemplate, int task, int day, int year, Path inputFile) {
@@ -229,7 +242,9 @@ public final class ExternalRunner {
                 .replace("{task}", ""+task)
                 .replace("{file}", ""+inputFile)
                 .replace("{abs_file}", ""+inputFile.toAbsolutePath())
-                .replace("{input}", win ? "$(Get-Content \""+inputFile+"\" -Raw)" : "\"$(<"+inputFile+")\"");
+                .replace("{input}", win ? "$(Get-Content '"+inputFile.toAbsolutePath()+"' -Raw)" : "\"$(<'"+inputFile.toAbsolutePath()+"')\"");
+
+        Console.mapDebug("Command for day "+day+" task "+task, cmd[2]);
 
         return new ProcessBuilder(cmd)
                 .redirectInput(inputFile.toFile())
@@ -262,7 +277,7 @@ public final class ExternalRunner {
             String configPath = options.getOr("config", "config.json");
 
             String token;
-            String command;
+            String[] commands;
             boolean inputStats;
 
             if(!options.is("token")) {
@@ -274,9 +289,12 @@ public final class ExternalRunner {
             if(!options.is("cmd")) {
                 if(config == null)
                     config = Config.read(configPath);
-                command = config.command();
+                commands = config.command();
             }
-            else command = options.get("cmd");
+            else {
+                commands = new String[25];
+                Arrays.fill(commands, options.get("cmd"));
+            }
 
             if(!options.is("inputStats")) {
                 if(config == null)
@@ -290,10 +308,12 @@ public final class ExternalRunner {
                 year += 2000;
 
             if(options.is("all"))
-                runAll(command, options.getIntOr("day", -1), year, token, options.getIntOr("repeat", 1), options.is("check"));
-            else run(command, options.getIntOr("task", -1), options.getIntOr("day", -1), year, token, options.is("example"), options.getIntOr("repeat", 1), inputStats);
+                runAll(commands, options.getIntOr("day", -1), year, token, options.getIntOr("repeat", 1), options.is("check"));
+            else run(commands, options.getIntOr("task", -1), options.getIntOr("day", -1), year, token, options.is("example"), options.getIntOr("repeat", 1), inputStats);
         } catch(Solution.InvalidInputException e) {
             Console.error(e.getMessage());
+            if(Console.isEnabled("debug"))
+                Console.error(e);
             if(args.length == 0)
                 Console.error("Run --help for more info");
         }
@@ -304,8 +324,26 @@ public final class ExternalRunner {
      * Represents the config file for an external program.
      */
     private record Config(@Default(value = "token.txt", string = true) Path token,
-                      String command,
+                      String[] command,
                       @Default("true") boolean showInputStats) {
+
+        static {
+            Json.registerDeserializer(Config.class, json -> {
+                Path tokenFile = Path.of(json.get("token").or(String.class, "token.txt"));
+                boolean showInputStats = json.get("showInputStats").or(boolean.class, true);
+                String[] command;
+                if(!json.contains("command"))
+                    command = null;
+                else if(json.get("command").isArray())
+                    command = json.get("command").asArray().toArray(String[]::new);
+                else {
+                    command = new String[25];
+                    Arrays.fill(command, json.get("command").asString());
+                }
+                return new Config(tokenFile, command, showInputStats);
+            });
+        }
+
         @NotNull
         private static Config read(String path) {
             try {
@@ -325,7 +363,7 @@ public final class ExternalRunner {
 
         @Override
         @NotNull
-        public String command() {
+        public String[] command() {
             if(command == null)
                 throw new Solution.InvalidInputException("'command' field missing in config.json, which should be the command pattern to run your program for a specific puzzle task. See README.md for more info on patterns.");
             return command;

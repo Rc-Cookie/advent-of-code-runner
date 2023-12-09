@@ -102,6 +102,10 @@ the following fields:
     - `{file}`: The filename of the input file (note that the input file is also piped in as stdin
     - `{abs_file}`: The absolute filename of the input file
     - `{input}`: The contents of the input file (to be passed as parameter to the program) (note that the input file is also piped in as stdin)
+
+  Additionally, you can specify an array of strings instead of a single string, which allows you to use a different command for each day.
+  The first element of the array corresponds to day 1, the second to day 2 etc.
+  If you don't have a command for some day but for a later day, you can insert `null` for that day instead as a placeholder.
 - Optional: `"token"`: The file that contains the session token used to authenticate
   on adventofcode.com. This token can be found by logging in on the website and then
   opening the browser devtools. In the category "storage" you can see the cookies of
