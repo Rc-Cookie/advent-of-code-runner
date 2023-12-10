@@ -79,7 +79,7 @@ public final class ExternalRunner {
             }
         });
 
-        Console.log("Profiling mode, hiding regular program output (stderr will be shown)");
+        Console.log("Profiling mode, hiding regular program output (errors will be shown)");
 
         long[] durations = new long[processes.length];
         boolean allCorrect = true;
@@ -278,7 +278,9 @@ public final class ExternalRunner {
                 .replace("{abs_file}", ""+inputFile.toAbsolutePath())
                 .replace("{input}", win ? "$(Get-Content '"+inputFile.toAbsolutePath()+"' -Raw)" : "\"$(<'"+inputFile.toAbsolutePath()+"')\"");
 
-        Console.mapDebug("Command for day "+day+" task "+task, cmd[2]);
+        synchronized(Console.class) {
+            Console.mapDebug("Command for day " + day + " task " + task, cmd[2]);
+        }
 
         return new ProcessBuilder(cmd)
                 .redirectInput(inputFile.toFile())
@@ -306,44 +308,11 @@ public final class ExternalRunner {
         Options options = parser.parse(args);
 
         try {
-            // Load config file only on demand; if we never use it we don't need to complain about errors
-            Config config = null;
-            String configPath = options.getOr("config", "config.json");
+            Config config = Solution.parseConfig(options, Config.class, "/defaultExternalConfig.json");
 
-            String token;
-            String[] commands;
-            boolean inputStats;
-
-            if(!options.is("token")) {
-                config = Config.read(configPath);
-                token = config.tokenValue();
-            }
-            else token = options.get("token");
-
-            if(!options.is("cmd")) {
-                if(config == null)
-                    config = Config.read(configPath);
-                commands = config.command();
-            }
-            else {
-                commands = new String[25];
-                Arrays.fill(commands, options.get("cmd"));
-            }
-
-            if(!options.is("inputStats")) {
-                if(config == null)
-                    config = Config.read(configPath);
-                inputStats = config.showInputStats();
-            }
-            else inputStats = options.get("inputStats").equalsIgnoreCase("true");
-
-            int year = options.getIntOr("year", -1);
-            if(year >= 0 && year < 100)
-                year += 2000;
-
-            if(options.is("all"))
-                runAll(commands, options.getIntOr("day", -1), year, token, options.getIntOr("warmup", 0), options.getIntOr("repeat", 1), options.is("check"));
-            else run(commands, options.getIntOr("task", -1), options.getIntOr("day", -1), year, token, options.is("example"), options.getIntOr("warmup", 0), options.getIntOr("repeat", 1), inputStats);
+            if(config.all)
+                runAll(config.command().commands, config.day, config.year, config.tokenValue(), config.warmup, config.repeat, config.checkAll);
+            else run(config.command().commands, config.task, config.day, config.year, config.tokenValue(), config.example, config.warmup, config.repeat, config.inputStats);
         } catch(Solution.InvalidInputException e) {
             Console.error(e.getMessage());
             if(Console.isEnabled("debug"))
@@ -358,36 +327,22 @@ public final class ExternalRunner {
      * Represents the config file for an external program.
      */
     private record Config(@Default(value = "token.txt", string = true) Path token,
-                      String[] command,
-                      @Default("true") boolean showInputStats) {
+                          String tokenValue,
+                          Commands command,
+                          @Default("true") boolean inputStats,
+                          @Default("false") boolean all,
+                          @Default("false") boolean checkAll,
+                          @Default("1") int repeat,
+                          @Default("0") int warmup,
+                          @Default("false") boolean example,
+                          @Default("-1") int day,
+                          @Default("-1") int year,
+                          @Default("-1") int task) {
 
-        static {
-            Json.registerDeserializer(Config.class, json -> {
-                Path tokenFile = Path.of(json.get("token").or(String.class, "token.txt"));
-                boolean showInputStats = json.get("showInputStats").or(boolean.class, true);
-                String[] command;
-                if(!json.contains("command"))
-                    command = null;
-                else if(json.get("command").isArray())
-                    command = json.get("command").asArray().toArray(String[]::new);
-                else {
-                    command = new String[25];
-                    Arrays.fill(command, json.get("command").asString());
-                }
-                return new Config(tokenFile, command, showInputStats);
-            });
-        }
-
-        @NotNull
-        private static Config read(String path) {
-            try {
-                return Json.load(path).as(Config.class);
-            } catch(Exception e) {
-                throw new Solution.InvalidInputException("Failed to parse " + path + (e.getMessage() != null ? ": " + e.getMessage() : "") + "\nCheck the README.md file to get detail on the structure of the config file.", e);
-            }
-        }
-
+        @Override
         public String tokenValue() {
+            if(tokenValue != null)
+                return tokenValue;
             try {
                 return Files.readString(token()).trim();
             } catch(IOException e) {
@@ -397,10 +352,22 @@ public final class ExternalRunner {
 
         @Override
         @NotNull
-        public String[] command() {
+        public Commands command() {
             if(command == null)
-                throw new Solution.InvalidInputException("'command' field missing in config.json, which should be the command pattern to run your program for a specific puzzle task. See README.md for more info on patterns.");
+                throw new Solution.InvalidInputException("'command' field missing in config file, which should be the command pattern to run your program for a specific puzzle task. See README.md for more info on patterns.");
             return command;
+        }
+    }
+
+    record Commands(String[] commands) {
+        static {
+            Json.registerDeserializer(Commands.class, json -> {
+                if(json.isArray())
+                    return new Commands(json.as(String[].class));
+                String[] commands = new String[25];
+                Arrays.fill(commands, json.asString());
+                return new Commands(commands);
+            });
         }
     }
 }

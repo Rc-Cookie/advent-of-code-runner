@@ -1,6 +1,8 @@
 package de.rccookie.aoc;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URLEncoder;
@@ -23,6 +25,7 @@ import java.util.OptionalLong;
 import java.util.TimeZone;
 import java.util.function.IntFunction;
 import java.util.function.ToLongFunction;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.diogonunes.jcolor.Attribute;
@@ -30,6 +33,7 @@ import de.rccookie.http.ContentType;
 import de.rccookie.http.HttpRequest;
 import de.rccookie.json.Default;
 import de.rccookie.json.Json;
+import de.rccookie.json.JsonElement;
 import de.rccookie.math.Mathf;
 import de.rccookie.util.ArgsParser;
 import de.rccookie.util.Console;
@@ -70,7 +74,7 @@ import org.jetbrains.annotations.Range;
  *     opening the browser devtools. In the category "storage" you can see the cookies of
  *     the website, which should include the "session" cookie. The default value of this is
  *     "token.txt".</li>
- *     <li>Optional: "showInputStats": Boolean, which can be used to control whether to
+ *     <li>Optional: "inputStats": Boolean, which can be used to control whether to
  *     print a short input summary at the beginning of execution. Enabled by default.</li>
  * </ul>
  *
@@ -888,7 +892,7 @@ public abstract class Solution {
      */
     public static String run(Class<? extends Solution> type, int task, int day, int year, boolean exampleInput) throws InvalidInputException {
         Config config = Config.read("config.json");
-        return run(type, task, day, year, config.tokenValue(), exampleInput, 0, 1, config.showInputStats());
+        return run(type, task, day, year, config.tokenValue(), exampleInput, 0, 1, config.inputStats());
     }
 
     /**
@@ -950,10 +954,15 @@ public abstract class Solution {
      */
     public static String run(int task, int day, int year, boolean exampleInput) throws InvalidInputException {
         Config config = Config.read("config.json");
-        return run(config.classPattern(), task, day, year, config.tokenValue(), exampleInput, 0, 1, config.showInputStats());
+        return run(config.classPattern(), task, day, year, config.tokenValue(), exampleInput, 0, 1, config.inputStats());
     }
 
 
+    /**
+     * Creates an args parser with all the parameters in common for java and external program execution.
+     *
+     * @return A partially configured args parser
+     */
     static ArgsParser createGenericArgsParser() {
         ArgsParser parser = new ArgsParser();
         parser.setName("Advent of Code Runner");
@@ -971,6 +980,35 @@ public abstract class Solution {
         parser.addOption('r', "repeat", true, "Repeat the execution so many times and take the average time");
         parser.addOption('w', "warmup", true, "Repeat the execution so many times additionally before starting to measure time");
         return parser;
+    }
+
+    /**
+     * Merges the given options with the config file contents and parses the result
+     * into the specific config class. If the file does not exist, it will be created from
+     * the given template resource and an exception will be thrown.
+     *
+     * @param options The command line options overriding config file parameters
+     * @param toType The config file type, must be deserializable from json
+     * @param defaultConfigResource Path of the resource containing the default config file template for the given config class
+     * @return The parsed config class
+     */
+    static <T> T parseConfig(Options options, Class<T> toType, String defaultConfigResource) {
+        Path configFile = Path.of(options.getOr("config", "config.json"));
+        JsonElement json = options.getJson();
+        try {
+            if(Files.exists(configFile))
+                json = json.merge(Json.load(configFile));
+            else {
+                try(InputStream defaultConfig = Solution.class.getResourceAsStream(defaultConfigResource)) {
+                    //noinspection DataFlowIssue
+                    defaultConfig.transferTo(Files.newOutputStream(configFile));
+                }
+                throw new InvalidInputException(configFile+" not found, template generated. Please adjust the required values.");
+            }
+        } catch(IOException|UncheckedIOException e) {
+            throw new InvalidInputException(e.getMessage(), e);
+        }
+        return json.as(toType);
     }
 
 
@@ -992,45 +1030,15 @@ public abstract class Solution {
                         Automatically downloads input or example files and submits your solution.
 
                         Usage: aoc-run [options]""");
-        parser.addOption(null, "cls", true, "Overrides config; fully qualified name pattern of your solution class, where {day}, {0_day}, {year} and {full_year} will be replaced with the day of month, the day of month padded with a 0 if needed, the last two digits of the year or the full year number, respectively.");
+        parser.addOption('p', "classPattern", true, "Overrides config; fully qualified name pattern of your solution class, where {day}, {0_day}, {year} and {full_year} will be replaced with the day of month, the day of month padded with a 0 if needed, the last two digits of the year or the full year number, respectively.");
         Options options = parser.parse(args);
 
         try {
-            // Load config file only on demand; if we never use it we don't need to complain about errors
-            Config config = null;
-            String configPath = options.getOr("config", "config.json");
+            Config config = parseConfig(options, Config.class, "/defaultJavaConfig.json");
 
-            String token;
-            String classPattern;
-            boolean inputStats;
-
-            if(!options.is("token")) {
-                config = Config.read(configPath);
-                token = config.tokenValue();
-            }
-            else token = options.get("token");
-
-            if(!options.is("cls")) {
-                if(config == null)
-                    config = Config.read(configPath);
-                classPattern = config.classPattern();
-            }
-            else classPattern = options.get("cls");
-
-            if(!options.is("inputStats")) {
-                if(config == null)
-                    config = Config.read(configPath);
-                inputStats = config.showInputStats();
-            }
-            else inputStats = options.get("inputStats").equalsIgnoreCase("true");
-
-            int year = options.getIntOr("year", -1);
-            if(year >= 0 && year < 100)
-                year += 2000;
-
-            if(options.is("all"))
-                runAll(classPattern, options.getIntOr("day", -1), year, token, options.getIntOr("warmup", 0), options.getIntOr("repeat", 1), options.is("check"));
-            else run(classPattern, options.getIntOr("task", -1), options.getIntOr("day", -1), year, token, options.is("example"), options.getIntOr("warmup", 0), options.getIntOr("repeat", 1), inputStats);
+            if(config.all)
+                runAll(config.classPattern, config.day, config.year, config.tokenValue(), config.warmup, config.repeat, config.checkAll);
+            else run(config.classPattern, config.task, config.day, config.year, config.tokenValue(), config.example, config.warmup, config.repeat, config.inputStats);
         } catch(InvalidInputException e) {
             Console.error(e.getMessage());
             if(args.length == 0)
@@ -1055,8 +1063,18 @@ public abstract class Solution {
      * Represents the config file.
      */
     private record Config(@Default(value = "token.txt", string = true) Path token,
+                          String tokenValue,
                           String classPattern,
-                          @Default("true") boolean showInputStats) {
+                          @Default("true") boolean inputStats,
+                          @Default("false") boolean all,
+                          @Default("false") boolean checkAll,
+                          @Default("1") int repeat,
+                          @Default("0") int warmup,
+                          @Default("false") boolean example,
+                          @Default("-1") int day,
+                          @Default("-1") int year,
+                          @Default("-1") int task) {
+
         @NotNull
         private static Config read(String path) {
             try {
@@ -1066,7 +1084,10 @@ public abstract class Solution {
             }
         }
 
+        @Override
         public String tokenValue() {
+            if(tokenValue != null)
+                return tokenValue;
             try {
                 return Files.readString(token()).trim();
             } catch(IOException e) {
@@ -1078,7 +1099,7 @@ public abstract class Solution {
         @NotNull
         public String classPattern() {
             if(classPattern == null)
-                throw new InvalidInputException("'classPattern' field missing in config.json, which should be the fully qualified name pattern of your solution classes. See README.md for more info on patterns.");
+                throw new InvalidInputException("'classPattern' field missing in config file, which should be the fully qualified name pattern of your solution classes. See README.md for more info on patterns.");
             return classPattern;
         }
     }

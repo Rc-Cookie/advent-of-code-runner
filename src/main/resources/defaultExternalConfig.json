@@ -1,0 +1,36 @@
+{
+  // The command that starts your program for a specific day, year and task. Other macros are also available:
+  // - {day_0}: 0-padded day
+  // - {year}: year mod 100
+  // - {file}: input file name
+  // - {abs_file}: absolute input file name
+  "command": "echo 'Input for day {day} of year {full_year}:'; echo {input}; echo 'Solution for part {task}:'; echo 'My solution'" // TODO: Adjust to run your program
+
+  // The file containing your login token, 'token.txt' is the default value
+  // "token": "mySpecialTokenFile.txt"
+
+  // Disables printing of some input statistics at startup, such as line count and line lengths. Enabled by default.
+  // "showInputStats": false
+
+  // Run all tasks of all days up to the current or selected day and generate an execution speed report
+  // "all": true
+
+  // By default, results are not validated when running multiple tasks at once to avoid having to fetch many
+  // solutions every time. This enables it.
+  // "checkAll": true
+
+  // Execute the task / each task more than once and average the duration
+  // "repeat": 100
+
+  // Execute the task / each task additional times without timing, before the timed runs. Default is 0.
+  // "warmup": 100
+
+  // Always execute this day / all tasks up to this day. You should probably rather use the -d / --day command line option.
+  // "day": 24
+
+  // Always execute tasks from this year
+  // "year": 2024
+
+  // Always execute task 1 / task 2. You should probably rather use the -t / --task command line option.
+  // "task": 1
+}
