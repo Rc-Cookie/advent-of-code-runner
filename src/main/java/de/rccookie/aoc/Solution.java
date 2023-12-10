@@ -189,7 +189,7 @@ public abstract class Solution {
      */
     protected char[][] charTable(char padding) {
         int maxLength = Mathf.max(charTable, l -> l.length);
-        char[][] table = new char[charTable.length][maxLength + 2];
+        char[][] table = new char[charTable.length + 2][maxLength + 2];
         Arrays.fill(table[0], padding);
         Arrays.fill(table[table.length-1], padding);
         for(int i=0; i<charTable.length; i++) {
