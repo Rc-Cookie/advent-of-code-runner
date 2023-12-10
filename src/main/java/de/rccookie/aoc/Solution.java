@@ -212,7 +212,7 @@ public abstract class Solution {
     protected String getInputStats() {
         IntSummaryStatistics lengths = lines.mapToInt(String::length).filter(i -> i != 0).summaryStatistics();
         return "Input statistics: Lines: "+linesArr.length
-               +" | Chars: "+chars.length
+               +" | Chars: "+chars.length+" ("+input.chars().filter(c -> !Character.isWhitespace(c)).count()+" non-empty)"
                +" | Blank lines: "+lines.filter(String::isBlank).count()
                +" | Line lengths: "+lengths.getMin()+(lengths.getMin() == lengths.getMax() ? "" : " - "+lengths.getMax());
     }

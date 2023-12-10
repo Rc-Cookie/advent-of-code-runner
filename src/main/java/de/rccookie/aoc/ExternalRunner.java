@@ -28,7 +28,7 @@ public final class ExternalRunner {
     private static String getInputStats(String input) {
         IntSummaryStatistics lengths = input.lines().mapToInt(String::length).filter(i -> i != 0).summaryStatistics();
         return "Input statistics: Lines: "+input.lines().count()
-               +" | Chars: "+input.toCharArray().length
+               +" | Chars: "+input.toCharArray().length+" ("+input.chars().filter(c -> !Character.isWhitespace(c)).count()+" non-empty)"
                +" | Blank lines: "+input.lines().filter(String::isBlank).count()
                +" | Line lengths: "+lengths.getMin()+(lengths.getMin() == lengths.getMax() ? "" : " - "+lengths.getMax());
     }
