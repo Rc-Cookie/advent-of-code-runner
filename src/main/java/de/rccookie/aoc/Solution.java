@@ -550,7 +550,8 @@ public abstract class Solution {
                 .replace(" ,", ",")
                 .replace(" .", ".")
                 .replaceFirst("([.!?])\\s*", "$1\n");
-        Console.log(info);
+        Console.log(Console.colored(info.lines().findFirst().get(), Attribute.BOLD()));
+        Console.log(info.lines().skip(1).collect(Collectors.joining("\n")));
 
         return result;
     }
