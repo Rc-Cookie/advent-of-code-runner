@@ -296,6 +296,7 @@ public abstract class Solution {
                 solutions[i].load();
         } catch(Exception e) {
             Console.error("Exception while loading day:", i/2 + 1);
+            //noinspection CallToPrintStackTrace
             e.printStackTrace();
             // Exception should occur in instances (for task 1 and 2) because its independent
             // of the task
@@ -308,7 +309,8 @@ public abstract class Solution {
         boolean[] correct = new boolean[solutions.length];
         Arrays.fill(correct, true);
 
-        for(int i=0; i<solutions.length; i++) try {
+        for(int i=0; i<solutions.length; i++) //noinspection ControlFlowStatementWithoutBraces
+            try {
             if(solutions[i] == null) continue;
 
             Console.log("Running day {} task {}...", i/2 + 1, i%2 + 1);
@@ -335,6 +337,7 @@ public abstract class Solution {
             }
 
         } catch(Exception e) {
+            //noinspection CallToPrintStackTrace
             e.printStackTrace();
         } catch(NotImplemented e) {
             Console.error("Not implemented");
@@ -361,6 +364,7 @@ public abstract class Solution {
     @NotNull
     static TableRenderer createTable(long[] durations, boolean[] correct) {
         TableRenderer table = new TableRenderer();
+        table.style(TableRenderer.Style.DOUBLE_LINES_AFTER_LABELS);
         table.horizontalAlignment(Alignment.RIGHT);
         table.columnLabels("Task 1", "Task 2");
         List<String> rowLabels = new ArrayList<>();
