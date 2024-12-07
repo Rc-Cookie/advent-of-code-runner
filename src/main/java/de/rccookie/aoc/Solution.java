@@ -535,9 +535,9 @@ public abstract class Solution {
                 // The correct answer has already been submitted, now we can compare
                 // ourselves with the correct answer
                 if(solutions.value[task - 1].equals(result))
-                    Console.log("That is the correct answer!");
-                else Console.log("That is not the correct answer, the expected answer is {}.", Console.colored(solutions.value[task - 1], Attribute.ITALIC()));
-                Console.log("(You have already solved this puzzle before)");
+                    Console.log(Console.colored("That is the correct answer!", Attribute.GREEN_TEXT()));
+                else Console.log(Console.colored("That is not the correct answer, the expected answer is", Attribute.RED_TEXT()), Console.colored(solutions.value[task - 1], Attribute.ITALIC(), Attribute.RED_TEXT()) + Console.colored(".", Attribute.RED_TEXT()));
+                Console.log(Console.colored("(You have already solved this puzzle before)", Attribute.ITALIC()));
             }
             return result;
         }
@@ -558,7 +558,12 @@ public abstract class Solution {
                 .replace(" ,", ",")
                 .replace(" .", ".")
                 .replaceFirst("([.!?])\\s*", "$1\n");
-        Console.log(Console.colored(info.lines().findFirst().get(), Attribute.BOLD()));
+        String first = info.lines().findFirst().get();
+        if(first.contains("is the correct answer"))
+            Console.log(Console.colored(first, Attribute.BOLD(), Attribute.GREEN_TEXT()));
+        else if(first.contains("is not the correct answer"))
+            Console.log(Console.colored(first, Attribute.BOLD(), Attribute.GREEN_TEXT()));
+        else Console.log(Console.colored(first, Attribute.BOLD(), Attribute.RED_TEXT()));
         Console.log(info.lines().skip(1).collect(Collectors.joining("\n")));
 
         return result;
@@ -696,7 +701,7 @@ public abstract class Solution {
             String input = HttpRequest.get("https://adventofcode.com/"+year+"/day/"+day+"/input")
                     .addCookie("session", token)
                     .send().text();
-            if(input.startsWith("Puzzle inputs differ per user"))
+            if(input.startsWith("Puzzle inputs differ by user"))
                 throw new InvalidInputException("Invalid token, cannot receive input data");
             if(input.startsWith("Please don't repeatedly request this endpoint before it unlocks!"))
                 throw new InvalidInputException("Puzzle "+day+" is not yet unlocked");
