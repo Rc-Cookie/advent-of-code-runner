@@ -603,11 +603,7 @@ public abstract class Solution {
                 .replace(" .", ".")
                 .replaceFirst("([.!?])\\s*", "$1\n");
         String first = info.lines().findFirst().get();
-        if(first.contains("is the correct answer"))
-            Console.log(Console.colored(first, Attribute.BOLD(), Attribute.GREEN_TEXT()));
-        else if(first.contains("is not the correct answer"))
-            Console.log(Console.colored(first, Attribute.BOLD(), Attribute.GREEN_TEXT()));
-        else Console.log(Console.colored(first, Attribute.BOLD(), Attribute.RED_TEXT()));
+        Console.log(Console.colored(first, Attribute.BOLD(), first.matches(".*that('s| is) the (right|correct) answer.*") ? Attribute.GREEN_TEXT() : Attribute.RED_TEXT()));
         Console.log(info.lines().skip(1).collect(Collectors.joining("\n")));
 
         return result;
