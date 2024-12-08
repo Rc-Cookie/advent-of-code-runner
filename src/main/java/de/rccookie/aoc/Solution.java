@@ -603,7 +603,7 @@ public abstract class Solution {
                 .replace(" .", ".")
                 .replaceFirst("([.!?])\\s*", "$1\n");
         String first = info.lines().findFirst().get();
-        Console.log(Console.colored(first, Attribute.BOLD(), first.matches(".*that('s| is) the (right|correct) answer.*") ? Attribute.GREEN_TEXT() : Attribute.RED_TEXT()));
+        Console.log(Console.colored(first, Attribute.BOLD(), first.matches(".*[Tt]hat('s| is) the (right|correct) answer.*") ? Attribute.GREEN_TEXT() : Attribute.RED_TEXT()));
         Console.log(info.lines().skip(1).collect(Collectors.joining("\n")));
 
         return result;
