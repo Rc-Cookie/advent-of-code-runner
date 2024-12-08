@@ -35,6 +35,7 @@ import de.rccookie.json.Default;
 import de.rccookie.json.Json;
 import de.rccookie.json.JsonElement;
 import de.rccookie.math.Mathf;
+import de.rccookie.math.constInt2;
 import de.rccookie.util.ArgsParser;
 import de.rccookie.util.Console;
 import de.rccookie.util.ListStream;
@@ -115,6 +116,11 @@ public abstract class Solution {
      * All the lines from the input string as char arrays (without newlines).
      */
     protected char[][] charTable;
+    /**
+     * The dimensions of {@link #charTable}. If some lines are
+     * longer than others, the maximum width is used.
+     */
+    protected constInt2 size;
 
 
     /**
@@ -205,10 +211,47 @@ public abstract class Solution {
     }
 
     /**
+     * Returns the character from {@link #charTable} at the given
+     * coordinates.
+     *
+     * @param pos The x and y coordinate of the char to get
+     * @return The char at that position
+     */
+    protected char charAt(constInt2 pos) {
+        return charTable[pos.y()][pos.x()];
+    }
+
+    /**
+     * Returns the character from the given 2D character array at the given
+     * coordinates, that is <code>table[pos.y()][pos.x()]</code>.
+     *
+     * @param pos The x and y coordinate of the char to get
+     * @return The char at that position
+     */
+    protected char charAt(char[][] table, constInt2 pos) {
+        return table[pos.y()][pos.x()];
+    }
+
+    /**
+     * Returns the character from {@link #charTable} at the given
+     * coordinates, or the default value if the position would be
+     * out of bounds.
+     *
+     * @param pos The x and y coordinate of the char to get
+     * @param defaultValue The value to return if x or y are out of bounds
+     * @return The char at the given position, or <code>defaultValue</code>
+     */
+    protected char charAt(constInt2 pos, char defaultValue) {
+        if(pos.x() < 0 || pos.y() < 0 || pos.y() >= charTable.length || pos.x() >= charTable[pos.y()].length)
+            return defaultValue;
+        return charTable[pos.y()][pos.x()];
+    }
+
+    /**
      * Return some statistics about the input data into the console. This function
      * may be modified to print custom statistics.
      */
-    @SuppressWarnings("DataFlowIssue")
+                          @SuppressWarnings("DataFlowIssue")
     protected String getInputStats() {
         IntSummaryStatistics lengths = lines.mapToInt(String::length).filter(i -> i != 0).summaryStatistics();
         return "Input statistics: Lines: "+linesArr.length
@@ -228,6 +271,7 @@ public abstract class Solution {
         linesArr = lines.toArray(String[]::new);
         //noinspection DataFlowIssue
         charTable = lines.map(String::toCharArray).toArray(char[][]::new);
+        size = new constInt2(Mathf.max(linesArr, String::length), linesArr.length);
     }
 
 
