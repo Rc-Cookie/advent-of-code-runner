@@ -250,7 +250,7 @@ public final class ExternalRunner {
         // Print results
         Console.map("Result", Console.colored(result != null ? result : "No result found - the last line printed to stdout is treated as result", Attribute.BOLD()));
         Console.map("Duration", watch.getPassedNanos() / 1000000.0 / repeatCount + "ms");
-        if(result == null || result.isBlank() || result.length() > 30)
+        if(exampleInput || result == null || result.isBlank() || result.length() > 30)
             // null, blank string or long output won't be the solution, so just exit
             return result;
 
