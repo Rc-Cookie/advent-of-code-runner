@@ -24,6 +24,7 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.TimeZone;
 import java.util.function.IntFunction;
+import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -36,6 +37,7 @@ import de.rccookie.json.Json;
 import de.rccookie.json.JsonElement;
 import de.rccookie.math.Mathf;
 import de.rccookie.math.constInt2;
+import de.rccookie.math.int2;
 import de.rccookie.util.ArgsParser;
 import de.rccookie.util.Console;
 import de.rccookie.util.ListStream;
@@ -91,6 +93,25 @@ public abstract class Solution {
      */
     static final Calendar CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("EST"));
 
+
+    /**
+     * The vector constants left, right, up and down.
+     */
+    protected static final constInt2[] ADJ4 = { new constInt2(-1,0), new constInt2(1,0), new constInt2(0,-1), new constInt2(0,1) };
+    /**
+     * The vector constants top left, top right, bottom left and bottom right.
+     */
+    protected static final constInt2[] DIAGONALS = { int2.minusOne, new constInt2(1,-1), new constInt2(-1,1), int2.one };
+    /**
+     * The vector constants between [-1,-1] and [1,1] (inclusive), exluding [0,0].
+     */
+    protected static final constInt2[] ADJ8 = {
+            int2.minusOne, new constInt2(0,-1), new constInt2(1,-1),
+            new constInt2(-1,0), new constInt2(1,0),
+            new constInt2(-1,1), new constInt2(0,1), int2.one
+    };
+
+
     /**
      * The raw input string.
      */
@@ -121,6 +142,11 @@ public abstract class Solution {
      * longer than others, the maximum width is used.
      */
     protected constInt2 size;
+    /**
+     * A {@link Grid} instance containing {@link #charTable}; a utility
+     * class with many helpful methods for grid-formed Advent of Code input.
+     */
+    protected Grid grid;
 
 
     /**
@@ -172,6 +198,54 @@ public abstract class Solution {
      */
     protected long sum(ToLongFunction<String> lineFunction) {
         return lines.mapToLong(lineFunction).sum();
+    }
+
+    /**
+     * Evaluates the given predicate once for every element in the iterable and
+     * returns the number of times it returned <code>true</code>.
+     *
+     * @param data The data to evaluate
+     * @param filter The filter to test for every data entry
+     * @return The number of times the filter evaluated to <code>true</code>
+     */
+    public final <T> int count(Iterable<? extends T> data, Predicate<? super T> filter) {
+        return Mathf.sum(data, t -> filter.test(t) ? 1 : 0);
+    }
+
+    /**
+     * Evaluates the given predicate once for every element in the array and
+     * returns the number of times it returned <code>true</code>.
+     *
+     * @param data The data to evaluate
+     * @param filter The filter to test for every data entry
+     * @return The number of times the filter evaluated to <code>true</code>
+     */
+    public final <T> int count(T[] data, Predicate<? super T> filter) {
+        return Mathf.sum(data, t -> filter.test(t) ? 1 : 0);
+    }
+
+    /**
+     * Returns the sum of applying the given function to all elements from the
+     * iterable.
+     *
+     * @param data The data to evaluate
+     * @param counter The function to determine the value of a given object
+     * @return The sum of all data's values
+     */
+    public final <T> long sum(Iterable<? extends T> data, ToLongFunction<? super T> counter) {
+        return Mathf.sumL(data, counter);
+    }
+
+    /**
+     * Returns the sum of applying the given function to all elements from the
+     * array.
+     *
+     * @param data The data to evaluate
+     * @param counter The function to determine the value of a given object
+     * @return The sum of all data's values
+     */
+    public final <T> long sum(T[] data, ToLongFunction<? super T> counter) {
+        return Mathf.sumL(data, counter);
     }
 
     /**
@@ -272,6 +346,7 @@ public abstract class Solution {
         //noinspection DataFlowIssue
         charTable = lines.map(String::toCharArray).toArray(char[][]::new);
         size = new constInt2(Mathf.max(linesArr, String::length), linesArr.length);
+        grid = new Grid(charTable);
     }
 
 
