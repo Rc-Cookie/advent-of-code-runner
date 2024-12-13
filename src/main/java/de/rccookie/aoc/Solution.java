@@ -208,7 +208,7 @@ public abstract class Solution {
      * @param filter The filter to test for every data entry
      * @return The number of times the filter evaluated to <code>true</code>
      */
-    public final <T> int count(Iterable<? extends T> data, Predicate<? super T> filter) {
+    public <T> int count(Iterable<? extends T> data, Predicate<? super T> filter) {
         return Mathf.sum(data, t -> filter.test(t) ? 1 : 0);
     }
 
@@ -220,7 +220,7 @@ public abstract class Solution {
      * @param filter The filter to test for every data entry
      * @return The number of times the filter evaluated to <code>true</code>
      */
-    public final <T> int count(T[] data, Predicate<? super T> filter) {
+    public <T> int count(T[] data, Predicate<? super T> filter) {
         return Mathf.sum(data, t -> filter.test(t) ? 1 : 0);
     }
 
@@ -232,7 +232,7 @@ public abstract class Solution {
      * @param counter The function to determine the value of a given object
      * @return The sum of all data's values
      */
-    public final <T> long sum(Iterable<? extends T> data, ToLongFunction<? super T> counter) {
+    public <T> long sum(Iterable<? extends T> data, ToLongFunction<? super T> counter) {
         return Mathf.sumL(data, counter);
     }
 
@@ -244,7 +244,7 @@ public abstract class Solution {
      * @param counter The function to determine the value of a given object
      * @return The sum of all data's values
      */
-    public final <T> long sum(T[] data, ToLongFunction<? super T> counter) {
+    public <T> long sum(T[] data, ToLongFunction<? super T> counter) {
         return Mathf.sumL(data, counter);
     }
 
