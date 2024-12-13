@@ -796,7 +796,7 @@ public final class Grid {
     }
 
     /**
-     * Returns the 5 directly adjacent characters at the given coordinate (left, right,
+     * Returns the 4 directly adjacent characters at the given coordinate (left, right,
      * top and bottom), excluding entries that would be out of bounds.
      *
      * @param xy The coordinates where to query the adjacent characters
@@ -807,7 +807,7 @@ public final class Grid {
     }
 
     /**
-     * Returns the 5 directly adjacent characters at the given coordinate (left, right,
+     * Returns the 4 directly adjacent characters at the given coordinate (left, right,
      * top and bottom), excluding entries that would be out of bounds.
      *
      * @param x The x coordinate where to query the adjacent characters
@@ -864,7 +864,7 @@ public final class Grid {
     }
 
     /**
-     * Returns the 5 diagonally adjacent characters at the given coordinate (without the character
+     * Returns the 4 diagonally adjacent characters at the given coordinate (without the character
      * at the position itself), excluding entries that would be out of bounds.
      *
      * @param xy The coordinates where to query the adjacent characters
@@ -875,7 +875,7 @@ public final class Grid {
     }
 
     /**
-     * Returns the 5 diagonally adjacent characters at the given coordinate (without the character
+     * Returns the 4 diagonally adjacent characters at the given coordinate (without the character
      * at the position itself), excluding entries that would be out of bounds.
      *
      * @param x The x coordinate where to query the adjacent characters
@@ -990,8 +990,8 @@ public final class Grid {
     }
 
     /**
-     * Returns the 4 diagonally adjacent positions at the given coordinate, excluding
-     * entries that would be out of bounds.
+     * Returns the 5 diagonally adjacent positions at the given coordinate (including
+     * the point itself), excluding entries that would be out of bounds.
      *
      * @param xy The coordinates where to query the adjacent coordinates
      * @return The adjacent coordinates
@@ -1001,8 +1001,8 @@ public final class Grid {
     }
 
     /**
-     * Returns the 4 diagonally adjacent positions at the given coordinate, excluding
-     * entries that would be out of bounds.
+     * Returns the 5 diagonally adjacent positions at the given coordinate (including
+     * the point itself), excluding entries that would be out of bounds.
      *
      * @param x The x coordinate where to query the adjacent coordinates
      * @param y The y coordinate where to query the adjacent coordinates
