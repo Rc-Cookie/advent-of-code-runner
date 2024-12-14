@@ -2,7 +2,10 @@ package de.rccookie.aoc;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.Deque;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -21,6 +24,7 @@ import de.rccookie.math.constInt2;
 import de.rccookie.math.int2;
 import de.rccookie.util.Console;
 import de.rccookie.util.IterableIterator;
+import de.rccookie.util.ListStream;
 import de.rccookie.util.MappingIterator;
 import de.rccookie.util.Utils;
 import org.jetbrains.annotations.NotNull;
@@ -107,7 +111,7 @@ public final class Grid {
         StringBuilder str = new StringBuilder();
         for(int y=0; y<height; y++) {
             for(int x=0; x<width; x++)
-                str.append(marked(x,y) ? Console.colored(grid[y][x], Attribute.BOLD()) : grid[y][x]);
+                str.append(marked(x,y) ? Console.colored(grid[y][x], Attribute.BOLD(), Attribute.RED_TEXT()) : grid[y][x]);
             if(y+1 != height)
                 str.append("\n");
         }
@@ -430,8 +434,12 @@ public final class Grid {
     public boolean mark(int x, int y) {
         if(marking == null)
             marking = new long[(size.product() + 63) / 64];
+        return mark(marking, x, y, width);
+    }
+
+    private static boolean mark(long[] data, int x, int y, int width) {
         int i = x + width * y;
-        return marking[i >>> 6] != (marking[i >>> 6] |= 1L << (i & 63));
+        return data[i >>> 6] != (data[i >>> 6] |= 1L << (i & 63));
     }
 
     /**
@@ -459,7 +467,7 @@ public final class Grid {
         if(marking == null)
             return false;
         int i = x + width * y;
-        return marking[i >>> 6] != (marking[i >>> 6] |= ~(1L << (i & 63)));
+        return marking[i >>> 6] != (marking[i >>> 6] &= ~(1L << (i & 63)));
     }
 
     /**
@@ -546,10 +554,12 @@ public final class Grid {
      * @return Whether the given coordinates are marked
      */
     public boolean marked(int x, int y) {
-        if(marking == null)
-            return false;
+        return marking != null && marked(marking, x, y, width);
+    }
+
+    private static boolean marked(long[] data, int x, int y, int width) {
         int i = x + width * y;
-        return (marking[i >>> 6] & 1L << (i & 63)) != 0;
+        return (data[i >>> 6] & 1L << (i & 63)) != 0;
     }
 
     /**
@@ -1393,6 +1403,258 @@ public final class Grid {
     private static final Pattern ANSI_ESCAPE_SEQUENCE_PAT = Pattern.compile("\u001b\\[\\d+(;\\d+)*m");
     private static int length(String str) {
         return ANSI_ESCAPE_SEQUENCE_PAT.matcher(str).replaceAll("").length();
+    }
+
+
+    /**
+     * Returns a stream over all points in the flood fill of this grid starting at the given
+     * point and recursively extending to all adjacent points with the same character value,
+     * using breath first search. The point itself is always included in the result. The fill
+     * only considers the 4 directly adjacent neighbors, not the diagonal ones.
+     *
+     * @param src The starting point from which to execute the flood fill search
+     * @return A stream over all the coordinates with the same character and connected to the
+     *         starting point using a path only leading across points with that character,
+     *         including <code>src</code>.
+     */
+    public ListStream<int2> floodFill(constInt2 src) {
+        return floodFill(src, FloodFillMode.BFS, false);
+    }
+
+    /**
+     * Returns a stream over all points in the flood fill of this grid starting at the given
+     * point and recursively extending to all adjacent points with the same character value,
+     * using breath first search. The point itself is always included in the result.
+     *
+     * @param src The starting point from which to execute the flood fill search
+     * @param diagonals Whether diagonal connections are allowed
+     * @return A stream over all the coordinates with the same character and connected to the
+     *         starting point using a path only leading across points with that character,
+     *         including <code>src</code>.
+     */
+    public ListStream<int2> floodFill(constInt2 src, boolean diagonals) {
+        return floodFill(src, FloodFillMode.BFS, diagonals);
+    }
+
+    /**
+     * Returns a stream over all points in the flood fill of this grid starting at the given
+     * point and recursively extending to all adjacent points with the same character value.
+     * The point itself is always included in the result.
+     *
+     * @param src The starting point from which to execute the flood fill search
+     * @param mode The algorithm to use, may impact iteration order
+     * @param diagonals Whether diagonal connections are allowed
+     * @return A stream over all the coordinates with the same character and connected to the
+     *         starting point using a path only leading across points with that character,
+     *         including <code>src</code>.
+     */
+    public ListStream<int2> floodFill(constInt2 src, FloodFillMode mode, boolean diagonals) {
+
+        char c = charAt(src);
+
+        boolean dfs = mode == FloodFillMode.DFS;
+
+        Deque<int2> todo = new ArrayDeque<>();
+        if(dfs) todo.push(src.clone());
+        else todo.add(src.clone());
+
+        long[] dejavu = new long[(width * height + 63) / 64];
+        mark(dejavu, src.x(), src.y(), width);
+
+        constInt2[] adj = diagonals ? Solution.ADJ8 : Solution.ADJ4;
+
+        return ListStream.of(new IterableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return !todo.isEmpty();
+            }
+
+            @Override
+            public int2 next() {
+                int2 v = todo.remove();
+                for(constInt2 off : adj) {
+                    int x = v.x() + off.x(), y = v.y() + off.y();
+                    if(x < 0 || y < 0 || x >= width || y >= height || grid[y][x] != c || !mark(dejavu, x, y, width))
+                        continue;
+                    if(dfs) todo.push(new int2(x,y));
+                    else todo.add(new int2(x,y));
+                }
+                return v;
+            }
+        });
+    }
+
+    /**
+     * Returns a stream over all points in the flood fill of this grid starting at the given
+     * point using breath first search. The point itself is always included in the result. The
+     * fill only considers the 4 directly adjacent neighbors, not the diagonal ones. This
+     * method differs from {@link #floodFill(constInt2, boolean, BiPredicate)} in that it
+     * supplies the chars rather than the coordinates to the connectivity predicate, for
+     * convenience.
+     *
+     * @param src The starting point from which to execute the flood fill search
+     * @param connectivity A predicate to determine for two given chars determines if they
+     *                     lie in the same area, that is, if the first char is within the
+     *                     flood fill, whether the second char should also do so. This relation
+     *                     must be symmetric, otherwise the result may depend on the iteration
+     *                     order. Usually, it should in fact be an equivalence relation, i.e.
+     *                     it should be transitive (reflexivity is irrelevant). However, if
+     *                     the input has specific properties, this may not be necessary in all
+     *                     cases.
+     * @return A stream over all the coordinates in the fill, including <code>src</code>
+     */
+    public ListStream<int2> floodFillChars(constInt2 src, Grid.BiCharPredicate connectivity) {
+        return floodFillChars(src, false, connectivity);
+    }
+
+    /**
+     * Returns a stream over all points in the flood fill of this grid starting at the given
+     * point using breath first search. The point itself is always included in the result.
+     * This method differs from {@link #floodFill(constInt2, boolean, BiPredicate)} in that it
+     * supplies the chars rather than the coordinates to the connectivity predicate, for
+     * convenience.
+     *
+     * @param src The starting point from which to execute the flood fill search
+     * @param diagonals Whether diagonal connections are allowed
+     * @param connectivity A predicate to determine for two given chars determines if they
+     *                     lie in the same area, that is, if the first char is within the
+     *                     flood fill, whether the second char should also do so. This relation
+     *                     must be symmetric, otherwise the result may depend on the iteration
+     *                     order. Usually, it should in fact be an equivalence relation, i.e.
+     *                     it should be transitive (reflexivity is irrelevant). However, if
+     *                     the input has specific properties, this may not be necessary in all
+     *                     cases.
+     * @return A stream over all the coordinates in the fill, including <code>src</code>
+     */
+    public ListStream<int2> floodFillChars(constInt2 src, boolean diagonals, Grid.BiCharPredicate connectivity) {
+        return floodFillChars(src, FloodFillMode.BFS, diagonals, connectivity);
+    }
+
+    /**
+     * Returns a stream over all points in the flood fill of this grid starting at the given
+     * point. The point itself is always included in the result. This method differs from
+     * {@link #floodFill(constInt2, FloodFillMode, boolean, BiPredicate)} in that it supplies
+     * the chars rather than the coordinates to the connectivity predicate, for convenience.
+     *
+     * @param src The starting point from which to execute the flood fill search
+     * @param mode The algorithm to use, may impact iteration order
+     * @param diagonals Whether diagonal connections are allowed
+     * @param connectivity A predicate to determine for two given chars determines if they
+     *                     lie in the same area, that is, if the first char is within the
+     *                     flood fill, whether the second char should also do so. This relation
+     *                     must be symmetric, otherwise the result may depend on the iteration
+     *                     order. Usually, it should in fact be an equivalence relation, i.e.
+     *                     it should be transitive (reflexivity is irrelevant). However, if
+     *                     the input has specific properties, this may not be necessary in all
+     *                     cases.
+     * @return A stream over all the coordinates in the fill, including <code>src</code>
+     */
+    public ListStream<int2> floodFillChars(constInt2 src, FloodFillMode mode, boolean diagonals, Grid.BiCharPredicate connectivity) {
+        return floodFill(src, mode, diagonals, (a,b) -> connectivity.test(charAtRaw(a), charAtRaw(b)));
+    }
+
+    /**
+     * Returns a stream over all points in the flood fill of this grid starting at the given
+     * point using breath first search. The point itself is always included in the result. The
+     * fill only considers the 4 directly adjacent neighbors, not the diagonal ones.
+     *
+     * @param src The starting point from which to execute the flood fill search
+     * @param connectivity A predicate to determine for two given points determines if they
+     *                     lie in the same area, that is, if the first point is within the
+     *                     flood fill, whether the second point should also do so. This relation
+     *                     must be symmetric, otherwise the result may depend on the iteration
+     *                     order. Usually, it should in fact be an equivalence relation, i.e.
+     *                     it should be transitive (reflexivity is irrelevant). However, if
+     *                     the input has specific properties, this may not be necessary in all
+     *                     cases.
+     * @return A stream over all the coordinates in the fill, including <code>src</code>
+     */
+    public ListStream<int2> floodFill(constInt2 src, BiPredicate<int2, int2> connectivity) {
+        return floodFill(src, false, connectivity);
+    }
+
+    /**
+     * Returns a stream over all points in the flood fill of this grid starting at the given
+     * point using breath first search. The point itself is always included in the result.
+     *
+     * @param src The starting point from which to execute the flood fill search
+     * @param diagonals Whether diagonal connections are allowed
+     * @param connectivity A predicate to determine for two given points determines if they
+     *                     lie in the same area, that is, if the first point is within the
+     *                     flood fill, whether the second point should also do so. This relation
+     *                     must be symmetric, otherwise the result may depend on the iteration
+     *                     order. Usually, it should in fact be an equivalence relation, i.e.
+     *                     it should be transitive (reflexivity is irrelevant). However, if
+     *                     the input has specific properties, this may not be necessary in all
+     *                     cases.
+     * @return A stream over all the coordinates in the fill, including <code>src</code>
+     */
+    public ListStream<int2> floodFill(constInt2 src, boolean diagonals, BiPredicate<int2, int2> connectivity) {
+        return floodFill(src, FloodFillMode.BFS, diagonals, connectivity);
+    }
+
+    /**
+     * Returns a stream over all points in the flood fill of this grid starting at the given
+     * point. The point itself is always included in the result.
+     *
+     * @param src The starting point from which to execute the flood fill search
+     * @param mode The algorithm to use, may impact iteration order
+     * @param diagonals Whether diagonal connections are allowed
+     * @param connectivity A predicate to determine for two given points determines if they
+     *                     lie in the same area, that is, if the first point is within the
+     *                     flood fill, whether the second point should also do so. This relation
+     *                     must be symmetric, otherwise the result may depend on the iteration
+     *                     order. Usually, it should in fact be an equivalence relation, i.e.
+     *                     it should be transitive (reflexivity is irrelevant). However, if
+     *                     the input has specific properties, this may not be necessary in all
+     *                     cases.
+     * @return A stream over all the coordinates in the fill, including <code>src</code>
+     */
+    public ListStream<int2> floodFill(constInt2 src, FloodFillMode mode, boolean diagonals, BiPredicate<int2, int2> connectivity) {
+
+        boolean dfs = mode == FloodFillMode.DFS;
+
+        Deque<int2> todo = new ArrayDeque<>();
+        if(dfs) todo.push(src.clone());
+        else todo.add(src.clone());
+
+        long[] dejavu = new long[(size.product() + 63) / 64];
+        mark(dejavu, src.x(), src.y(), width);
+
+        constInt2[] adj = diagonals ? Solution.ADJ8 : Solution.ADJ4;
+
+        return ListStream.of(new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return !todo.isEmpty();
+            }
+
+            @Override
+            public int2 next() {
+                int2 v = todo.remove();
+                for(constInt2 off : adj) {
+                    int x = v.x() + off.x(), y = v.y() + off.y();
+                    int2 w;
+                    if(x < 0 || y < 0 || x >= width || y >= height || marked(dejavu, x, y, width) || !connectivity.test(v, w = new int2(x,y)))
+                        continue;
+                    mark(dejavu, x, y, width);
+                    if(dfs) todo.push(w);
+                    else todo.add(w);
+                }
+                return v;
+            }
+        });
+    }
+
+
+    /**
+     * Possible algorithms determining the iteration order when using floodfill.
+     */
+    public enum FloodFillMode {
+        /** Breath first search. */
+        BFS,
+        /** Depth first search. */
+        DFS
     }
 
 
