@@ -35,10 +35,12 @@ import de.rccookie.http.HttpRequest;
 import de.rccookie.json.Default;
 import de.rccookie.json.Json;
 import de.rccookie.json.JsonElement;
+import de.rccookie.json.JsonObject;
 import de.rccookie.math.Mathf;
 import de.rccookie.math.constInt2;
 import de.rccookie.math.int2;
 import de.rccookie.util.ArgsParser;
+import de.rccookie.util.ArgumentOutOfRangeException;
 import de.rccookie.util.Console;
 import de.rccookie.util.ListStream;
 import de.rccookie.util.Options;
@@ -112,6 +114,11 @@ public abstract class Solution {
     };
 
 
+    /**
+     * The raw input string, hidden from subclasses such that implementations
+     * can't modify it.
+     */
+    private String originalInput;
     /**
      * The raw input string.
      */
@@ -325,7 +332,7 @@ public abstract class Solution {
      * Return some statistics about the input data into the console. This function
      * may be modified to print custom statistics.
      */
-                          @SuppressWarnings("DataFlowIssue")
+    @SuppressWarnings("DataFlowIssue")
     protected String getInputStats() {
         IntSummaryStatistics lengths = lines.mapToInt(String::length).filter(i -> i != 0).summaryStatistics();
         return "Input statistics: Lines: "+linesArr.length
@@ -339,6 +346,7 @@ public abstract class Solution {
      * Initialize the other inputs based on {@link #input}.
      */
     private void initInput() {
+        input = originalInput;
         chars = input.toCharArray();
         charList = new ArrayList<>(input.chars().mapToObj(c -> (char) c).toList());
         lines = ListStream.of(input.lines()).useAsList();
@@ -358,17 +366,17 @@ public abstract class Solution {
      * @param day The day up to which the puzzle solutions should be executed (inclusive)
      * @param year The year of the puzzles to solve
      * @param token The token used for authentication
-     * @param repeatCount How many times to run each task repeatedly, then average the runtime duration
+     * @param repeats How many times to run each task repeatedly, then average the runtime duration
      * @param checkResults Whether to validate the results of the tasks (if the task has already been solved before)
      * @throws InvalidInputException If some input given is invalid
      */
-    private static void runAll(String classPattern, int day, int year, String token, int warmup, int repeatCount, boolean checkResults) throws InvalidInputException {
+    private static void runAll(String classPattern, int day, int year, String token, int warmup, int repeats, boolean checkResults) throws InvalidInputException {
         // Validate token syntax
         if(token.length() != 128)
             throw new InvalidInputException("Invalid token, expected 128 characters");
 
         // Execute at least once
-        if(repeatCount < 1)
+        if(repeats < 1)
             throw new InvalidInputException("Repeat count < 1");
         if(warmup < 0)
             throw new Solution.InvalidInputException("Warmup count < 0");
@@ -400,9 +408,7 @@ public abstract class Solution {
             solutions[2*i] = createInstance(type);
             solutions[2*i+1] = createInstance(type);
 
-            solutions[2*i].input = solutions[2*i+1].input = getInput(i+1, _year, token, Path.of("input", _year+"", (i+1)+".txt"));
-            solutions[2*i].initInput();
-            solutions[2*i+1].initInput();
+            solutions[2*i].originalInput = solutions[2*i+1].originalInput = getInput(i+1, _year, token, Path.of("input", _year+"", (i+1)+".txt"));
 
             if(checkResults) {
                 String[] correct = getSolutions(i + 1, _year, token);
@@ -410,42 +416,18 @@ public abstract class Solution {
             }
         });
 
-        for(int i=0; i<solutions.length; i++) try {
-            if(solutions[i] != null)
-                solutions[i].load();
-        } catch(Exception e) {
-            Console.error("Exception while loading day:", i/2 + 1);
-            //noinspection CallToPrintStackTrace
-            e.printStackTrace();
-            // Exception should occur in instances (for task 1 and 2) because its independent
-            // of the task
-            solutions[i] = solutions[i+1] = null;
-            i++; // Don't print the error twice
-        }
-
         long[] durations = new long[solutions.length];
         boolean allCorrect = true;
         boolean[] correct = new boolean[solutions.length];
         Arrays.fill(correct, true);
 
-        for(int i=0; i<solutions.length; i++) //noinspection ControlFlowStatementWithoutBraces
-            try {
+        for(int i=0; i<solutions.length; i++) try {
             if(solutions[i] == null) continue;
 
             Console.log("Running day {} task {}...", i/2 + 1, i%2 + 1);
-            for(int j=0; j<warmup; j++) {
-                if(i % 2 == 0)
-                    solutions[i].task1();
-                else solutions[i].task2();
-            }
-            Stopwatch watch = new Stopwatch().start();
-            Object resultObj = null;
-            for(int j=0; j<repeatCount; j++) {
-                if(i % 2 == 0)
-                    resultObj = solutions[i].task1();
-                else resultObj = solutions[i].task2();
-            }
-            durations[i] = watch.getPassedNanos() / repeatCount;
+            Stopwatch watch = new Stopwatch().reset();
+            Object resultObj = runTask(solutions[i], i%2 + 1, warmup, repeats, watch);
+            durations[i] = watch.getPassedNanos() / repeats;
 
             if(checkResults && correctSolutions[i] != null) {
                 String result = unpackResult(resultObj);
@@ -463,14 +445,46 @@ public abstract class Solution {
         }
 
         System.out.println();
-        Console.map("Duration"+(repeatCount>1?" (average of "+repeatCount+" runs)":""), (Mathf.sumL(durations) / 1000000.0) + "ms");
-        if(checkResults && allCorrect)
-            Console.log("All results correct");
+        Console.map("Duration"+(repeats>1?" (average of "+repeats+" runs)":""), (Mathf.sumL(durations) / 1000000.0) + "ms");
 
         // Show the duration of each individual task in a table
         System.out.println(createTable(durations, correct));
         if(!allCorrect)
             Console.log("(*): Puzzle solution was incorrect");
+        else if(checkResults)
+            Console.log("All results correct");
+    }
+
+    /**
+     * Runs a specific subtask of the given solution repeatedly.
+     *
+     * @param solution The solution of which to execute a task
+     * @param task The number of the task to execute; 1 or 2
+     * @param warmup The number of untimed warmup rounds to run
+     * @param repeats The number of timed runs to execute
+     * @param watch The stopwatch to be used for timing, should be
+     *              paused when calling this method and will be paused
+     *              when returning from this method
+     * @return The value returned from the task in the last iteration
+     */
+    private static Object runTask(Solution solution, int task, int warmup, int repeats, Stopwatch watch) {
+        Object res = null;
+        for(int i = 0; i < warmup + repeats; i++) {
+            solution.initInput();
+            solution.load();
+            if(i >= warmup)
+                watch.start();
+
+            res = switch(task) {
+                case 1 -> solution.task1();
+                case 2 -> solution.task2();
+                default -> throw new ArgumentOutOfRangeException("No task #"+task);
+            };
+
+            if(i >= warmup)
+                watch.stop();
+        }
+        return res;
     }
 
     /**
@@ -509,18 +523,21 @@ public abstract class Solution {
      * @param year If positive the year of the puzzle, otherwise the current year
      * @param token Session token for adventofcode.com
      * @param exampleInput Whether to use the example input instead of the real input
+     * @param warmup The number of times to additionally repeat the calculation without measuring
+     *               the time
+     * @param repeats The number of times to repeat the calculation (for profiling purposes)
      * @param inputStats Whether to print input stats
      * @return The result computed by the solution class (may be wrong)
      * @throws InvalidInputException If some input given is invalid
      */
-    private static String run(Class<? extends Solution> type, int task, int day, int year, String token, boolean exampleInput, int warmup, int repeatCount, boolean inputStats) throws InvalidInputException {
+    private static String run(Class<? extends Solution> type, int task, int day, int year, String token, boolean exampleInput, int warmup, int repeats, boolean inputStats) throws InvalidInputException {
 
         // Validate token syntax (don't need a token for example input - not for input download, and won't submit)
         if(!exampleInput && token.length() != 128)
             throw new InvalidInputException("Invalid token, expected 128 characters");
 
         // Execute at least once
-        if(repeatCount < 1)
+        if(repeats < 1)
             throw new InvalidInputException("Repeat count < 1");
         if(warmup < 0)
             throw new Solution.InvalidInputException("Warmup count < 0");
@@ -547,8 +564,8 @@ public abstract class Solution {
 
         // Read input file or fetch from website and store
         if(exampleInput)
-            solution.input = getExampleInput(day, year, Path.of("input", year+"", "examples", day+".txt"));
-        else solution.input = getInput(day, year, token, Path.of("input", year+"", day+".txt"));
+            solution.originalInput = getExampleInput(day, year, Path.of("input", year+"", "examples", day+".txt"));
+        else solution.originalInput = getInput(day, year, token, Path.of("input", year+"", day+".txt"));
 
         // Initialize other fields
         solution.initInput();
@@ -557,61 +574,41 @@ public abstract class Solution {
 
         Console.log("Running puzzle {}{}", day, year != CALENDAR.get(Calendar.YEAR) ? " from year "+year : "");
 
-        // Give the solution a chance to do some preparation
-        solution.load();
-
         // Actually execute the task
-        Object resultObj = null;
-        Stopwatch watch = new Stopwatch();
+        Object resultObj;
+        Stopwatch watch = new Stopwatch().reset();
         if(task < 1 || task > 2) {
             // We don't know which one, so we execute task2(). If we get a NotImplemented error,
             // we know it cannot have been overridden by the user. Thus, then simply execute task1().
             try {
-                for(int i=0; i<warmup; i++)
-                    solution.task2();
-                watch.start();
-                for(int i=0; i<repeatCount; i++)
-                    resultObj = solution.task2();
+                resultObj = runTask(solution, 2, warmup, repeats, watch);
                 task = 2;
             } catch(NotImplemented n) {
-                for(int i=0; i<warmup; i++)
-                    solution.task1();
-                watch.start();
-                for(int i=0; i<repeatCount; i++)
-                    resultObj = solution.task1();
+                resultObj = runTask(solution, 1, warmup, repeats, watch);
                 task = 1;
             }
         }
         else if(task == 1) {
-            for(int i=0; i<warmup; i++)
-                solution.task1();
-            watch.start();
-            for(int i=0; i<repeatCount; i++)
-                resultObj = solution.task1();
+            resultObj = runTask(solution, 1, warmup, repeats, watch);
         }
         else {
             try {
-                for(int i=0; i<warmup; i++)
-                    solution.task2();
-                watch.start();
-                for(int i=0; i<repeatCount; i++)
-                    resultObj = solution.task2();
+                resultObj = runTask(solution, 2, warmup, repeats, watch);
             } catch(NotImplemented n) {
                 // This happens if task2() wasn't overridden but the user specified to run task 2 explicitly
                 throw new InvalidInputException("Task 2 is not yet implemented. Override the 'public Object task2() { }' method in "+type.getSimpleName());
             }
         }
-        watch.stop();
 
         // Print results
         String result = unpackResult(resultObj);
         Console.map("Result (task "+task+")", Console.colored(result, Attribute.BOLD()));
-        Console.map("Duration"+(repeatCount>1?" (average of "+repeatCount+" runs)":""), (watch.getPassedNanos() / repeatCount / 1000000.0) + "ms");
+        Console.map("Duration"+(repeats>1?" (average of "+repeats+" runs)":""), (watch.getPassedNanos() / repeats / 1000000.0) + "ms");
         if(exampleInput || resultObj == null || result.isBlank())
             // null or blank string won't be the solution, so just exit
             return resultObj == null ? null : result;
 
-        return maybeSubmit(task, day, year, token, solutions, result, t -> run(type, t, _day, _year, token, false, warmup, repeatCount, false));
+        return maybeSubmit(task, day, year, token, solutions, result, t -> run(type, t, _day, _year, token, false, warmup, repeats, false));
     }
 
     /**
@@ -1118,7 +1115,11 @@ public abstract class Solution {
      */
     static <T> T parseConfig(Options options, Class<T> toType, String defaultConfigResource) {
         Path configFile = Path.of(options.getOr("config", "config.json"));
-        JsonElement json = options.getJson();
+        // Fix mismatch between cli parameter name and config file field name
+        JsonObject jsonObj = (JsonObject) options.toJson();
+        if(jsonObj.contains("check"))
+            jsonObj.put("checkAll", jsonObj.remove("check"));
+        JsonElement json = jsonObj.asElement();
         try {
             if(Files.exists(configFile))
                 json = json.merge(Json.load(configFile));
