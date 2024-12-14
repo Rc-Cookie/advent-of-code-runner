@@ -92,6 +92,33 @@ public final class Grid {
         this(loadFile(file));
     }
 
+    /**
+     * Constructs a new, empty grid.
+     *
+     * @param size The size for the grid, component-wise non-negative
+     * @param initialValue The initial character to assign to all cells
+     */
+    public Grid(constInt2 size, char initialValue) {
+        this(size.x(), size.y(), initialValue);
+    }
+
+    /**
+     * Constructs a new, empty grid.
+     *
+     * @param width The width for the grid, non-negative
+     * @param height The height for the grid, non-negative
+     * @param initialValue The initial character to assign to all cells
+     */
+    public Grid(int width, int height, char initialValue) {
+        this.width = width;
+        this.height = height;
+        size = new constInt2(width, height);
+
+        this.grid = new char[height][width];
+        for(char[] row : grid)
+            Arrays.fill(row, initialValue);
+    }
+
     private static char[][] loadFile(Path file) {
         try(Stream<String> lines = Files.lines(file)) {
             return lines.filter(l -> !l.isEmpty()).map(String::toCharArray).toArray(char[][]::new);
