@@ -51,6 +51,7 @@ import de.rccookie.util.text.Alignment;
 import de.rccookie.util.text.TableRenderer;
 import de.rccookie.xml.Node;
 import de.rccookie.xml.XML;
+import org.intellij.lang.annotations.MagicConstant;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Range;
 
@@ -99,7 +100,7 @@ public abstract class Solution {
     /**
      * The vector constants left, right, up and down.
      */
-    protected static final constInt2[] ADJ4 = { new constInt2(-1,0), new constInt2(1,0), new constInt2(0,-1), new constInt2(0,1) };
+    protected static final constInt2[] ADJ4 = { new constInt2(-1,0), int2.X, new constInt2(0,-1), int2.Y };
     /**
      * The vector constants top left, top right, bottom left and bottom right.
      */
@@ -109,9 +110,26 @@ public abstract class Solution {
      */
     protected static final constInt2[] ADJ8 = {
             int2.minusOne, new constInt2(0,-1), new constInt2(1,-1),
-            new constInt2(-1,0), new constInt2(1,0),
-            new constInt2(-1,1), new constInt2(0,1), int2.one
+            new constInt2(-1,0), int2.X,
+            new constInt2(-1,1), int2.Y, int2.one
     };
+    /**
+     * A vector constant describing the unit vector pointing to the left.
+     */
+    protected static final constInt2 LEFT = new constInt2(-1,0);
+    /**
+     * A vector constant describing the unit vector pointing to the right.
+     */
+    protected static final constInt2 RIGHT = constInt2.X;
+    /**
+     * A vector constant describing the unit vector pointing up.
+     */
+    protected static final constInt2 UP = new constInt2(0,-1);
+    /**
+     * A vector constant describing the unit vector pointing down.
+     */
+    protected static final constInt2 DOWN = constInt2.Y;
+
 
 
     /**
@@ -329,6 +347,23 @@ public abstract class Solution {
     }
 
     /**
+     * Returns one of {@link #LEFT}, {@link #RIGHT}, {@link #UP} or {@link #DOWN} for
+     * the respective value of '&lt;', '>', '^' or 'v'.
+     *
+     * @param dir One of &lt;>^v
+     * @return The respective unit direction vector
+     */
+    protected static constInt2 directionVec(@MagicConstant(intValues = {'<', '>', '^', 'v'}) char dir) {
+        return switch(dir) {
+            case '<' -> LEFT;
+            case '>' -> RIGHT;
+            case '^' -> UP;
+            case 'v' -> DOWN;
+            default -> throw new IllegalArgumentException(Json.escape(dir)+" is not a valid direction (only one of <,>,^,v are allowed)");
+        };
+    }
+
+    /**
      * Return some statistics about the input data into the console. This function
      * may be modified to print custom statistics.
      */
@@ -343,10 +378,12 @@ public abstract class Solution {
 
 
     /**
-     * Initialize the other inputs based on {@link #input}.
+     * Initialize the other inputs.
+     *
+     * @param input The raw input string
      */
-    private void initInput() {
-        input = originalInput;
+    protected void initInput(String input) {
+        this.input = input;
         chars = input.toCharArray();
         charList = new ArrayList<>(input.chars().mapToObj(c -> (char) c).toList());
         lines = ListStream.of(input.lines()).useAsList();
@@ -470,7 +507,7 @@ public abstract class Solution {
     private static Object runTask(Solution solution, int task, int warmup, int repeats, Stopwatch watch) {
         Object res = null;
         for(int i = 0; i < warmup + repeats; i++) {
-            solution.initInput();
+            solution.initInput(solution.originalInput);
             solution.load();
             if(i >= warmup)
                 watch.start();
@@ -568,7 +605,7 @@ public abstract class Solution {
         else solution.originalInput = getInput(day, year, token, Path.of("input", year+"", day+".txt"));
 
         // Initialize other fields
-        solution.initInput();
+        solution.initInput(solution.originalInput);
         if(inputStats)
             Console.log(solution.getInputStats());
 

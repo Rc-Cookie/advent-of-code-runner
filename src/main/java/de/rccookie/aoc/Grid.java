@@ -5,8 +5,10 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -1671,6 +1673,336 @@ public final class Grid {
                 return v;
             }
         });
+    }
+
+
+    /**
+     * Simulates pushing 0 or more 1x1 sized obstacles once in a specific direction.
+     * If the required space is found, all (possibly 0 if none are in the way) obstacles
+     * will be pushed over accordingly, and the method returns the number of obstacles
+     * pushed. Otherwise, the grid content will remain unchanged and the method returns -1.
+     * '.' will be treated as empty space, where obstacles may be pushed.
+     *
+     * @param from The position from which to push. The first considered obstacles lays
+     *             next to it, at <code>from + dir</code>.
+     * @param dir The direction in which to push. In pretty much all use cases this should
+     *            be a vector with x and y each between -1 and 1, at least one of which
+     *            non-zero. Passing 0 will result in an exception. Passing e.g. [2,0] will
+     *            result in only every other cell being sampled for obstacles, and when
+     *            pushed the obstacles will move 2 cells at once, with anything in between
+     *            unaffected. Usually undesirable.
+     * @param movableChars A string containing all the characters that are considered
+     *                     movable obstacles, in arbitrary order. Any character that is
+     *                     neither a movable obstacle nor <code>empty</code> will be
+     *                     considered an immovable wall.
+     * @return The number of obstacles pushed (0 or more), or -1 if an immovable wall is in
+     *         the way
+     */
+    public int push(constInt2 from, constInt2 dir, String movableChars) {
+        return movableChars.length() == 1 ? push(from, dir, movableChars.charAt(0)) : push(from, dir, c -> movableChars.indexOf(c) >= 0);
+    }
+
+    /**
+     * Simulates pushing 0 or more 1x1 sized obstacles once in a specific direction.
+     * If the required space is found, all (possibly 0 if none are in the way) obstacles
+     * will be pushed over accordingly, and the method returns the number of obstacles
+     * pushed. Otherwise, the grid content will remain unchanged and the method returns -1.
+     * '.' will be treated as empty space, where obstacles may be pushed.
+     *
+     * @param from The position from which to push. The first considered obstacles lays
+     *             next to it, at <code>from + dir</code>.
+     * @param dir The direction in which to push. In pretty much all use cases this should
+     *            be a vector with x and y each between -1 and 1, at least one of which
+     *            non-zero. Passing 0 will result in an exception. Passing e.g. [2,0] will
+     *            result in only every other cell being sampled for obstacles, and when
+     *            pushed the obstacles will move 2 cells at once, with anything in between
+     *            unaffected. Usually undesirable.
+     * @param movable A predicate determining whether a given character represents a movable
+     *                object, an "obstacle". Any character that is neither a movable
+     *                obstacle nor <code>empty</code> will be considered an immovable wall.
+     * @return The number of obstacles pushed (0 or more), or -1 if an immovable wall is in
+     *         the way
+     */
+    public int push(constInt2 from, constInt2 dir, Grid.CharPredicate movable) {
+        return push(from, dir, movable, '.');
+    }
+
+    /**
+     * Simulates pushing 0 or more 1x1 sized obstacles once in a specific direction.
+     * If the required space is found, all (possibly 0 if none are in the way) obstacles
+     * will be pushed over accordingly, and the method returns the number of obstacles
+     * pushed. Otherwise, the grid content will remain unchanged and the method returns -1.
+     *
+     * @param from The position from which to push. The first considered obstacles lays
+     *             next to it, at <code>from + dir</code>.
+     * @param dir The direction in which to push. In pretty much all use cases this should
+     *            be a vector with x and y each between -1 and 1, at least one of which
+     *            non-zero. Passing 0 will result in an exception. Passing e.g. [2,0] will
+     *            result in only every other cell being sampled for obstacles, and when
+     *            pushed the obstacles will move 2 cells at once, with anything in between
+     *            unaffected. Usually undesirable.
+     * @param movableChars A string containing all the characters that are considered
+     *                     movable obstacles, in arbitrary order. Any character that is
+     *                     neither a movable obstacle nor <code>empty</code> will be
+     *                     considered an immovable wall.
+     * @param empty Character used to represent empty space, the background if you will.
+     *              If this character is found in the way of an obstacle, the obstacle will
+     *              move at its position, and the cell where that (or another obstacle, if
+     *              multiple were pushed at once) was will be set to this character.
+     * @return The number of obstacles pushed (0 or more), or -1 if an immovable wall is in
+     *         the way
+     */
+    public int push(constInt2 from, constInt2 dir, String movableChars, char empty) {
+        return movableChars.length() == 1 ? push(from, dir, movableChars.charAt(0), empty) : push(from, dir, c -> movableChars.indexOf(c) >= 0, empty);
+    }
+
+    /**
+     * Simulates pushing 0 or more 1x1 sized obstacles once in a specific direction.
+     * If the required space is found, all (possibly 0 if none are in the way) obstacles
+     * will be pushed over accordingly, and the method returns the number of obstacles
+     * pushed. Otherwise, the grid content will remain unchanged and the method returns -1.
+     *
+     * @param from The position from which to push. The first considered obstacles lays
+     *             next to it, at <code>from + dir</code>.
+     * @param dir The direction in which to push. In pretty much all use cases this should
+     *            be a vector with x and y each between -1 and 1, at least one of which
+     *            non-zero. Passing 0 will result in an exception. Passing e.g. [2,0] will
+     *            result in only every other cell being sampled for obstacles, and when
+     *            pushed the obstacles will move 2 cells at once, with anything in between
+     *            unaffected. Usually undesirable.
+     * @param movable A predicate determining whether a given character represents a movable
+     *                object, an "obstacle". Any character that is neither a movable obstacle
+     *                nor <code>empty</code> will be considered an immovable wall.
+     * @param empty Character used to represent empty space, the background if you will.
+     *              If this character is found in the way of an obstacle, the obstacle will
+     *              move at its position, and the cell where that (or another obstacle, if
+     *              multiple were pushed at once) was will be set to this character.
+     * @return The number of obstacles pushed (0 or more), or -1 if an immovable wall is in
+     *         the way
+     */
+    public int push(constInt2 from, constInt2 dir, Grid.CharPredicate movable, char empty) {
+        if(dir.isZero())
+            throw new IllegalArgumentException("Pushing direction may not be 0");
+
+        int obstacleCount = 0;
+        int2 cursor = from.added(dir);
+
+        char c;
+        while(movable.test(c = charAt(cursor))) {
+            cursor.add(dir);
+            ++obstacleCount;
+        }
+        if(c != empty)
+            return -1;
+
+        if(obstacleCount != 0) {
+            int2 cursorBefore = cursor.subed(dir);
+
+            if(inside(cursor))
+                set(cursor, charAt(cursorBefore));
+            cursor.set(cursorBefore);
+            cursorBefore.sub(dir);
+
+            while(!from.equals(cursorBefore)) {
+                set(cursor, charAt(cursorBefore));
+                cursor.set(cursorBefore);
+                cursorBefore.sub(dir);
+            }
+            set(cursor, empty);
+        }
+        return obstacleCount;
+    }
+
+    /**
+     * Simulates pushing 0 or more 1x1 sized obstacles once in a specific direction.
+     * If the required space is found, all (possibly 0 if none are in the way) obstacles
+     * will be pushed over accordingly, and the method returns the number of obstacles
+     * pushed. Otherwise, the grid content will remain unchanged and the method returns -1.
+     * '.' will be treated as empty space, where obstacles may be pushed.
+     *
+     * @param from The position from which to push. The first considered obstacles lays
+     *             next to it, at <code>from + dir</code>.
+     * @param dir The direction in which to push. In pretty much all use cases this should
+     *            be a vector with x and y each between -1 and 1, at least one of which
+     *            non-zero. Passing 0 will result in an exception. Passing e.g. [2,0] will
+     *            result in only every other cell being sampled for obstacles, and when
+     *            pushed the obstacles will move 2 cells at once, with anything in between
+     *            unaffected. Usually undesirable.
+     * @param movable The character that represents a movable obstacle. Any character that
+     *                is neither a movable obstacle nor <code>empty</code> will be
+     *                considered an immovable wall.
+     * @return The number of obstacles pushed (0 or more), or -1 if an immovable wall is in
+     *         the way
+     */
+    public int push(constInt2 from, constInt2 dir, char movable) {
+        return push(from, dir, movable, '.');
+    }
+
+    /**
+     * Simulates pushing 0 or more 1x1 sized obstacles once in a specific direction.
+     * If the required space is found, all (possibly 0 if none are in the way) obstacles
+     * will be pushed over accordingly, and the method returns the number of obstacles
+     * pushed. Otherwise, the grid content will remain unchanged and the method returns -1.
+     *
+     * @param from The position from which to push. The first considered obstacles lays
+     *             next to it, at <code>from + dir</code>.
+     * @param dir The direction in which to push. In pretty much all use cases this should
+     *            be a vector with x and y each between -1 and 1, at least one of which
+     *            non-zero. Passing 0 will result in an exception. Passing e.g. [2,0] will
+     *            result in only every other cell being sampled for obstacles, and when
+     *            pushed the obstacles will move 2 cells at once, with anything in between
+     *            unaffected. Usually undesirable.
+     * @param movable The character that represents a movable obstacle. Any character that
+     *                is neither a movable obstacle nor <code>empty</code> will be
+     *                considered an immovable wall.
+     * @param empty Character used to represent empty space, the background if you will.
+     *              If this character is found in the way of an obstacle, the obstacle will
+     *              move at its position, and the cell where that (or another obstacle, if
+     *              multiple were pushed at once) was will be set to this character.
+     * @return The number of obstacles pushed (0 or more), or -1 if an immovable wall is in
+     *         the way
+     */
+    public int push(constInt2 from, constInt2 dir, char movable, char empty) {
+        if(dir.isZero())
+            throw new IllegalArgumentException("Pushing direction may not be 0");
+
+        int obstacleCount = 0;
+        int2 cursor = from.added(dir);
+
+        char c;
+        while((c = charAt(cursor)) == movable) {
+            cursor.add(dir);
+            ++obstacleCount;
+        }
+        if(c != empty)
+            return -1;
+
+        if(obstacleCount != 0) {
+            if(inside(cursor))
+                set(cursor, movable);
+            if(inside(cursor.set(from).add(dir)))
+                set(cursor, empty);
+        }
+        return obstacleCount;
+    }
+
+
+    /**
+     * Simulates pushing 0 or more of instances of a specific shape once in a specific
+     * direction.
+     * <p>The shape may have arbitrary form, including holes or gaps. The shape is
+     * specified in ascii art; as n equally long lines delimited by '\n'. Holes are
+     * specified using whitespaces ' ' (each line still needs to have the same number of
+     * chars, even if it has trailing whitespaces). <b>All non-whitespace chars need to
+     * be distinct</b> such that the position of the shape can uniquely be identified given
+     * a single character. For example, <code>"[]"</code> would specify a simple 2x1 box,
+     * <code>"F7\nLJ"</code> may represent a 2x2 box, or <code>"[ ]"</code> could represent
+     * two small objects which are somehow entangled with each other.</p>
+     *
+     * If the required space is found, all (possibly 0 if none are in the way) obstacles
+     * will be pushed over accordingly, and the method returns the number of distinct objects
+     * pushed. Otherwise, the grid content will remain unchanged and the method returns -1.
+     * '.' will be treated as empty space, where obstacles may be pushed.
+     *
+     * @param from The position from which to push. The first considered obstacles lays
+     *             next to it, at <code>from + dir</code>.
+     * @param dir The direction in which to push. In pretty much all use cases this should
+     *            be a vector with x and y each between -1 and 1, at least one of which
+     *            non-zero. Passing 0 will result in an exception. Passing e.g. [2,0] will
+     *            result in only every other cell being sampled for obstacles, and when
+     *            pushed the obstacles will move 2 cells at once, with anything in between
+     *            unaffected. Usually undesirable.
+     * @param shape A string specifying the shape to be pushed, as described above
+     * @return The number of distinct obstacles pushed (0 or more), or -1 if an immovable wall
+     *         is in the way
+     */
+    public int pushShape(constInt2 from, constInt2 dir, String shape) {
+        return pushShape(from, dir, shape, '.');
+    }
+
+    /**
+     * Simulates pushing 0 or more of instances of a specific shape once in a specific
+     * direction.
+     * <p>The shape may have arbitrary form, including holes or gaps. The shape is
+     * specified in ascii art; as n equally long lines delimited by '\n'. Holes are
+     * specified using whitespaces ' ' (each line still needs to have the same number of
+     * chars, even if it has trailing whitespaces). <b>All non-whitespace chars need to
+     * be distinct</b> such that the position of the shape can uniquely be identified given
+     * a single character. For example, <code>"[]"</code> would specify a simple 2x1 box,
+     * <code>"F7\nLJ"</code> may represent a 2x2 box, or <code>"[ ]"</code> could represent
+     * two small objects which are somehow entangled with each other.</p>
+     *
+     * If the required space is found, all (possibly 0 if none are in the way) obstacles
+     * will be pushed over accordingly, and the method returns the number of distinct objects
+     * pushed. Otherwise, the grid content will remain unchanged and the method returns -1.
+     *
+     * @param from The position from which to push. The first considered obstacles lays
+     *             next to it, at <code>from + dir</code>.
+     * @param dir The direction in which to push. In pretty much all use cases this should
+     *            be a vector with x and y each between -1 and 1, at least one of which
+     *            non-zero. Passing 0 will result in an exception. Passing e.g. [2,0] will
+     *            result in only every other cell being sampled for obstacles, and when
+     *            pushed the obstacles will move 2 cells at once, with anything in between
+     *            unaffected. Usually undesirable.
+     * @param shape A string specifying the shape to be pushed, as described above
+     * @param empty Character used to represent empty space, the background if you will.
+     *              If this character is found in the way of an obstacle, the obstacle will
+     *              move at its position, and the cell where that (or another obstacle, if
+     *              multiple were pushed at once) was will be set to this character.
+     * @return The number of distinct obstacles pushed (0 or more), or -1 if an immovable wall
+     *         is in the way
+     */
+    public int pushShape(constInt2 from, constInt2 dir, String shape, char empty) {
+        if(dir.isZero())
+            throw new IllegalArgumentException("Pushing direction may not be 0");
+
+        int width1 = shape.indexOf('\n') + 1;
+        if(width1 <= 0)
+            width1 = shape.length() + 1;
+        int height = (shape.length()+1) / width1;
+
+        Set<int2> moved = new HashSet<>();
+        if(!findMovedObjects(from.added(dir), dir, empty, shape, width1-1, height, moved))
+            return -1;
+
+        for(int2 obj : moved) {
+            for(int i=0; i<width1-1; i++) for(int j=0; j<height; j++) {
+                if(shape.charAt(i + width1 * j) != ' ')
+                    grid[obj.y() + j][obj.x() + i] = empty;
+            }
+        }
+        for(int2 obj : moved) {
+            obj.add(dir);
+            for(int i=0; i<width1-1; i++) for(int j=0; j<height; j++) {
+                char c = shape.charAt(i + width1 * j);
+                if(c != ' ')
+                    grid[obj.y() + j][obj.x() + i] = c;
+            }
+        }
+
+        return moved.size();
+    }
+
+    private boolean findMovedObjects(int2 pos, constInt2 dir, char empty, String shape, int width, int height, Set<int2> objectsOut) {
+        char c = charAt(pos);
+        if(c == empty)
+            return true;
+
+        int index = shape.indexOf(c);
+        if(index < 0)
+            return false;
+
+        int x = index % (width+1), y = index / (width+1);
+        pos.sub(x,y);
+
+        if(!objectsOut.add(pos))
+            return true;
+
+        for(int i=0; i<width; i++) for(int j=0; j<height; j++)
+            if(shape.charAt(i + (width+1) * j) != ' ' && !findMovedObjects(pos.added(i,j).add(dir), dir, empty, shape, width, height, objectsOut))
+                return false;
+
+        return true;
     }
 
 
