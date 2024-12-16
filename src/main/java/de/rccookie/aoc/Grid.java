@@ -385,7 +385,7 @@ public final class Grid {
     }
 
     /**
-     * Returns the coordinates of the given char in the grid.
+     * Returns the coordinates of the first occurrence of the given char in the grid.
      *
      * @param c The character to search for
      * @return The coordinates of the character
@@ -394,6 +394,20 @@ public final class Grid {
     @NotNull
     public int2 find(char c) {
         return Objects.requireNonNull(tryFind(c), "'"+c+"' not found in input");
+    }
+
+    /**
+     * Returns the coordinates of the first occurrence of given char in the grid and sets
+     * its cell to the specified new value.
+     *
+     * @param c The character to search for
+     * @param newVal The replacement value to set the queried character's cell to
+     * @return The coordinates of the character
+     * @throws NullPointerException If the given character is not present in the grid
+     */
+    @NotNull
+    public int2 findAndSet(char c, char newVal) {
+        return Objects.requireNonNull(tryFindAndSet(c, newVal), "'"+c+"' not found in input");
     }
 
     /**
@@ -421,6 +435,26 @@ public final class Grid {
         for(constInt2 p : size.iterateConst())
             if(charAtRaw(p) == c)
                 return p.clone();
+        return null;
+    }
+
+    /**
+     * If the given character is present in this grid, its first occurrence
+     * will be set to the specified character and the position will be returned.
+     * Otherwise, the method returns <code>null</code>
+     *
+     * @param c The character to search for
+     * @param newVal The replacement value, if <code>c</code> is found
+     * @return The coordinates of the character, or <code>null</code>
+     */
+    @Nullable
+    public int2 tryFindAndSet(char c, char newVal) {
+        for(constInt2 p : size.iterateConst()) {
+            if(charAtRaw(p) == c) {
+                set(p, newVal);
+                return p.clone();
+            }
+        }
         return null;
     }
 
