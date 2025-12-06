@@ -15,6 +15,7 @@ import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.diogonunes.jcolor.Attribute;
@@ -471,6 +472,47 @@ public final class Grid {
             if(filter.test(p))
                 return p;
         return null;
+    }
+
+    /**
+     * Returns the specified row of this grid as a string.
+     *
+     * @param y The index of the row
+     * @return The row's characters as a string
+     */
+    public String row(int y) {
+        return new String(grid[y]);
+    }
+
+    /**
+     * Returns the specified column of this grid as a string.
+     *
+     * @param x The index of the column
+     * @return The column's characters as a string
+     */
+    public String column(int x) {
+        char[] str = new char[width];
+        for(int y=0; y<height; y++)
+            str[y] = grid[y][x];
+        return new String(str);
+    }
+
+    /**
+     * Returns a stream over all rows of this grid, from top to bottom.
+     *
+     * @return All rows as strings
+     */
+    public ListStream<String> rows() {
+        return ListStream.of(Arrays.stream(grid).map(String::new));
+    }
+
+    /**
+     * Returns a stream over all columns of this grid, from left to right.
+     *
+     * @return All columns as strings
+     */
+    public ListStream<String> columns() {
+        return ListStream.of(IntStream.range(0, width).mapToObj(this::column));
     }
 
     /**
