@@ -451,7 +451,7 @@ public final class Grid implements Iterable<int2> {
         return diff;
     }
 
-                   /**
+    /**
      * Returns the coordinates of the first occurrence of the given char in the grid.
      *
      * @param c The character to search for
