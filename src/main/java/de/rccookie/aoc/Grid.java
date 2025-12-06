@@ -1182,7 +1182,30 @@ public final class Grid {
         return adjPos(x, y, false, false, true);
     }
 
-    private int2[] adjPos(int x, int y, boolean self, boolean flat, boolean diag) {
+    /**
+     * Returns all adjacent positions, excluding entries that would be out of bounds.
+     *
+     * @param xy The coordinates where to query the adjacent coordinates
+     * @param self Whether to include the offset [0,0]
+     * @param flat Whether to include horizontally and vertically adjacent positions
+     * @param diag Whether to include diagonally adjacent positions
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos(constInt2 xy, boolean self, boolean flat, boolean diag) {
+        return adjPos(xy.x(), xy.y(), self, flat, diag);
+    }
+
+    /**
+     * Returns all adjacent positions, excluding entries that would be out of bounds.
+     *
+     * @param x The x coordinate where to query the adjacent coordinates
+     * @param y The y coordinate where to query the adjacent coordinates
+     * @param self Whether to include the offset [0,0]
+     * @param flat Whether to include horizontally and vertically adjacent positions
+     * @param diag Whether to include diagonally adjacent positions
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos(int x, int y, boolean self, boolean flat, boolean diag) {
         int2[] pos = adjOffsets(x, y, self, flat, diag);
         for(int2 p : pos)
             p.add(x,y);
@@ -1339,7 +1362,32 @@ public final class Grid {
         return adjOffsets(x, y, false, false, true);
     }
 
-    private int2[] adjOffsets(int x, int y, boolean self, boolean flat, boolean diag) {
+    /**
+     * Returns all adjacent positions as offsets between -1 and 1, excluding entries
+     * that would be out of bounds.
+     *
+     * @param xy The coordinates where to query the offsets to adjacent coordinates
+     * @param self Whether to include the offset [0,0]
+     * @param flat Whether to include horizontal and vertical offsets
+     * @param diag Whether to include diagonal offsets
+     * @return The offsets to adjacent coordinates
+     */
+    public int2[] adjOffsets(constInt2 xy, boolean self, boolean flat, boolean diag) {
+        return adjOffsets(xy.x(), xy.y(), self, flat, diag);
+    }
+
+    /**
+     * Returns all adjacent positions as offsets between -1 and 1, excluding entries
+     * that would be out of bounds.
+     *
+     * @param x The x coordinate where to query the offsets to adjacent coordinates
+     * @param y The y coordinate where to query the offsets to adjacent coordinates
+     * @param self Whether to include the offset [0,0]
+     * @param flat Whether to include horizontal and vertical offsets
+     * @param diag Whether to include diagonal offsets
+     * @return The offsets to adjacent coordinates
+     */
+    public int2[] adjOffsets(int x, int y, boolean self, boolean flat, boolean diag) {
         int max = (self?1:0) + (flat?4:0) + (diag?4:0);
         int2[] adj = new int2[max];
         int i = 0;
@@ -1364,6 +1412,416 @@ public final class Grid {
                 adj[i++] = new int2(0, 1);
             if(diag && x+1 < width)
                 adj[i++] = new int2(1, 1);
+        }
+        return i < max ? Arrays.copyOf(adj, i) : adj;
+    }
+
+
+
+
+    /**
+     * Returns the 9 adjacent positions at the given coordinate (including the position
+     * itself), excluding entries that would be out of bounds, and whose chars are different
+     * from the given value.
+     *
+     * @param value The char value each field must have to be included
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos9(constInt2 xy, char value) {
+        return adjPos9(xy.x(), xy.y(), value);
+    }
+
+    /**
+     * Returns the 9 adjacent positions at the given coordinate (including the position
+     * itself), excluding entries that would be out of bounds, and whose chars are different
+     * from the given value.
+     *
+     * @param x The x coordinate where to query the adjacent coordinates
+     * @param y The y coordinate where to query the adjacent coordinates
+     * @param value The char value each field must have to be included
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos9(int x, int y, char value) {
+        return adjPos(x, y, true, true, true, value);
+    }
+
+    /**
+     * Returns the 8 adjacent positions at the given coordinate (excluding the position
+     * itself), excluding entries that would be out of bounds, and whose chars are different
+     * from the given value.
+     *
+     * @param xy The coordinates where to query the adjacent coordinates
+     * @param value The char value each field must have to be included
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos8(constInt2 xy, char value) {
+        return adjPos8(xy.x(), xy.y(), value);
+    }
+
+    /**
+     * Returns the 8 adjacent positions at the given coordinate (excluding the position
+     * itself), excluding entries that would be out of bounds, and whose chars are different
+     * from the given value.
+     *
+     * @param x The x coordinate where to query the adjacent coordinates
+     * @param y The y coordinate where to query the adjacent coordinates
+     * @param value The char value each field must have to be included
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos8(int x, int y, char value) {
+        return adjPos(x, y, false, true, true, value);
+    }
+
+    /**
+     * Returns the 5 directly adjacent positions at the given coordinate (left, right,
+     * top, bottom and the position itself), excluding entries that would be out of bounds,
+     * and whose chars are different from the given value.
+     *
+     * @param xy The coordinates where to query the adjacent coordinates
+     * @param value The char value each field must have to be included
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos5(constInt2 xy, char value) {
+        return adjPos5(xy.x(), xy.y(), value);
+    }
+
+    /**
+     * Returns the 5 directly adjacent positions at the given coordinate (left, right,
+     * top, bottom and the position itself), excluding entries that would be out of bounds,
+     * and whose chars are different from the given value.
+     *
+     * @param x The x coordinate where to query the adjacent coordinates
+     * @param y The y coordinate where to query the adjacent coordinates
+     * @param value The char value each field must have to be included
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos5(int x, int y, char value) {
+        return adjPos(x, y, true, true, false, value);
+    }
+
+    /**
+     * Returns the 4 directly adjacent positions at the given coordinate (left, right,
+     * top and bottom), excluding entries that would be out of bounds, and whose chars
+     * are different from the given value.
+     *
+     * @param xy The coordinates where to query the adjacent coordinates
+     * @param value The char value each field must have to be included
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos4(constInt2 xy, char value) {
+        return adjPos4(xy.x(), xy.y(), value);
+    }
+
+    /**
+     * Returns the 4 directly adjacent positions at the given coordinate (left, right,
+     * top and bottom), excluding entries that would be out of bounds, and whose chars
+     * are different from the given value.
+     *
+     * @param x The x coordinate where to query the adjacent coordinates
+     * @param y The y coordinate where to query the adjacent coordinates
+     * @param value The char value each field must have to be included
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos4(int x, int y, char value) {
+        return adjPos(x, y, false, true, false, value);
+    }
+
+    /**
+     * Returns the 5 diagonally adjacent positions at the given coordinate (including
+     * the point itself), excluding entries that would be out of bounds, and whose chars
+     * are different from the given value.
+     *
+     * @param xy The coordinates where to query the adjacent coordinates
+     * @param value The char value each field must have to be included
+     * @return The adjacent coordinates
+     */
+    public int2[] diagPos5(constInt2 xy, char value) {
+        return diagPos5(xy.x(), xy.y(), value);
+    }
+
+    /**
+     * Returns the 5 diagonally adjacent positions at the given coordinate (including
+     * the point itself), excluding entries that would be out of bounds, and whose chars
+     * are different from the given value.
+     *
+     * @param x The x coordinate where to query the adjacent coordinates
+     * @param y The y coordinate where to query the adjacent coordinates
+     * @param value The char value each field must have to be included
+     * @return The adjacent coordinates
+     */
+    public int2[] diagPos5(int x, int y, char value) {
+        return adjPos(x, y, true, false, true, value);
+    }
+
+    /**
+     * Returns the 4 diagonally adjacent positions at the given coordinate, excluding
+     * entries that would be out of bounds, and whose chars are different from the
+     * given value.
+     *
+     * @param xy The coordinates where to query the adjacent coordinates
+     * @param value The char value each field must have to be included
+     * @return The adjacent coordinates
+     */
+    public int2[] diagPos4(constInt2 xy, char value) {
+        return diagPos4(xy.x(), xy.y(), value);
+    }
+
+    /**
+     * Returns the 4 diagonally adjacent positions at the given coordinate, excluding
+     * entries that would be out of bounds, and whose chars are different from the
+     * given value.
+     *
+     * @param x The x coordinate where to query the adjacent coordinates
+     * @param y The y coordinate where to query the adjacent coordinates
+     * @param value The char value each field must have to be included
+     * @return The adjacent coordinates
+     */
+    public int2[] diagPos4(int x, int y, char value) {
+        return adjPos(x, y, false, false, true, value);
+    }
+
+    /**
+     * Returns all adjacent positions, excluding entries that would be out of bounds, and whose
+     * chars are different from the given value.
+     *
+     * @param xy The coordinates where to query the offsets to adjacent coordinates
+     * @param self Whether to include the offset [0,0]
+     * @param flat Whether to include horizontal and vertical offsets
+     * @param diag Whether to include diagonal offsets
+     * @param value The char value each field must have to be included
+     * @return The offsets to adjacent coordinates
+     */
+    public int2[] adjPos(constInt2 xy, boolean self, boolean flat, boolean diag, char value) {
+        return adjPos(xy.x(), xy.y(), self, flat, diag, value);
+    }
+
+    /**
+     * Returns all adjacent positions, excluding entries that would be out of bounds, and whose
+     * chars are different from the given value.
+     *
+     * @param x The x coordinate where to query the adjacent coordinates
+     * @param y The y coordinate where to query the adjacent coordinates
+     * @param self Whether to include the offset [0,0]
+     * @param flat Whether to include horizontal and vertical offsets
+     * @param diag Whether to include diagonal offsets
+     * @param value The char value each field must have to be included
+     * @return The offsets to adjacent coordinates
+     */
+    public int2[] adjPos(int x, int y, boolean self, boolean flat, boolean diag, char value) {
+        return adjPos(x, y, self, flat, diag, c -> c == value);
+    }
+
+    /**
+     * Returns the 9 adjacent positions at the given coordinate (including the position
+     * itself), excluding entries that would be out of bounds, and whose chars don't match
+     * the given filter.
+     *
+     * @param xy The coordinates where to query the adjacent coordinates
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos9(constInt2 xy, CharPredicate filter) {
+        return adjPos9(xy.x(), xy.y(), filter);
+    }
+
+    /**
+     * Returns the 9 adjacent positions at the given coordinate (including the position
+     * itself), excluding entries that would be out of bounds, and whose chars don't match
+     * the given filter.
+     *
+     * @param x The x coordinate where to query the adjacent coordinates
+     * @param y The y coordinate where to query the adjacent coordinates
+     * @param filter Filter tested for each position, only matching positions are returned
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos9(int x, int y, CharPredicate filter) {
+        return adjPos(x, y, true, true, true, filter);
+    }
+
+    /**
+     * Returns the 8 adjacent positions at the given coordinate (excluding the position
+     * itself), excluding entries that would be out of bounds, and whose chars don't match
+     * the given filter.
+     *
+     * @param xy The coordinates where to query the adjacent coordinates
+     * @param filter Filter tested for each position, only matching positions are returned
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos8(constInt2 xy, CharPredicate filter) {
+        return adjPos8(xy.x(), xy.y(), filter);
+    }
+
+    /**
+     * Returns the 8 adjacent positions at the given coordinate (excluding the position
+     * itself), excluding entries that would be out of bounds, and whose chars don't match
+     * the given filter.
+     *
+     * @param x The x coordinate where to query the adjacent coordinates
+     * @param y The y coordinate where to query the adjacent coordinates
+     * @param filter Filter tested for each position, only matching positions are returned
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos8(int x, int y, CharPredicate filter) {
+        return adjPos(x, y, false, true, true, filter);
+    }
+
+    /**
+     * Returns the 5 directly adjacent positions at the given coordinate (left, right,
+     * top, bottom and the position itself), excluding entries that would be out of bounds,
+     * and whose chars don't match the given filter.
+     *
+     * @param xy The coordinates where to query the adjacent coordinates
+     * @param filter Filter tested for each position, only matching positions are returned
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos5(constInt2 xy, CharPredicate filter) {
+        return adjPos5(xy.x(), xy.y(), filter);
+    }
+
+    /**
+     * Returns the 5 directly adjacent positions at the given coordinate (left, right,
+     * top, bottom and the position itself), excluding entries that would be out of bounds,
+     * and whose chars don't match the given filter.
+     *
+     * @param x The x coordinate where to query the adjacent coordinates
+     * @param y The y coordinate where to query the adjacent coordinates
+     * @param filter Filter tested for each position, only matching positions are returned
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos5(int x, int y, CharPredicate filter) {
+        return adjPos(x, y, true, true, false, filter);
+    }
+
+    /**
+     * Returns the 4 directly adjacent positions at the given coordinate (left, right,
+     * top and bottom), excluding entries that would be out of bounds, and whose chars
+     * don't match the given filter.
+     *
+     * @param xy The coordinates where to query the adjacent coordinates
+     * @param filter Filter tested for each position, only matching positions are returned
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos4(constInt2 xy, CharPredicate filter) {
+        return adjPos4(xy.x(), xy.y(), filter);
+    }
+
+    /**
+     * Returns the 4 directly adjacent positions at the given coordinate (left, right,
+     * top and bottom), excluding entries that would be out of bounds, and whose chars don't
+     * match the given filter.
+     *
+     * @param x The x coordinate where to query the adjacent coordinates
+     * @param y The y coordinate where to query the adjacent coordinates
+     * @param filter Filter tested for each position, only matching positions are returned
+     * @return The adjacent coordinates
+     */
+    public int2[] adjPos4(int x, int y, CharPredicate filter) {
+        return adjPos(x, y, false, true, false, filter);
+    }
+
+    /**
+     * Returns the 5 diagonally adjacent positions at the given coordinate (including
+     * the point itself), excluding entries that would be out of bounds, and whose chars
+     * don't match the given filter.
+     *
+     * @param xy The coordinates where to query the adjacent coordinates
+     * @param filter Filter tested for each position, only matching positions are returned
+     * @return The adjacent coordinates
+     */
+    public int2[] diagPos5(constInt2 xy, CharPredicate filter) {
+        return diagPos5(xy.x(), xy.y(), filter);
+    }
+
+    /**
+     * Returns the 5 diagonally adjacent positions at the given coordinate (including
+     * the point itself), excluding entries that would be out of bounds, and whose chars
+     * don't match the given filter.
+     *
+     * @param x The x coordinate where to query the adjacent coordinates
+     * @param y The y coordinate where to query the adjacent coordinates
+     * @param filter Filter tested for each position, only matching positions are returned
+     * @return The adjacent coordinates
+     */
+    public int2[] diagPos5(int x, int y, CharPredicate filter) {
+        return adjPos(x, y, true, false, true, filter);
+    }
+
+    /**
+     * Returns the 4 diagonally adjacent positions at the given coordinate, excluding
+     * entries that would be out of bounds, and whose chars don't match the given filter.
+     *
+     * @param xy The coordinates where to query the adjacent coordinates
+     * @param filter Filter tested for each position, only matching positions are returned
+     * @return The adjacent coordinates
+     */
+    public int2[] diagPos4(constInt2 xy, CharPredicate filter) {
+        return diagPos4(xy.x(), xy.y(), filter);
+    }
+
+    /**
+     * Returns the 4 diagonally adjacent positions at the given coordinate, excluding
+     * entries that would be out of bounds, and whose chars don't match the given filter.
+     *
+     * @param x The x coordinate where to query the adjacent coordinates
+     * @param y The y coordinate where to query the adjacent coordinates
+     * @param filter Filter tested for each position, only matching positions are returned
+     * @return The adjacent coordinates
+     */
+    public int2[] diagPos4(int x, int y, CharPredicate filter) {
+        return adjPos(x, y, false, false, true, filter);
+    }
+
+    /**
+     * Returns all adjacent positions, excluding entries that would be out of bounds, and whose
+     * chars don't match the given filter.
+     *
+     * @param xy The coordinates where to query the offsets to adjacent coordinates
+     * @param self Whether to include the offset [0,0]
+     * @param flat Whether to include horizontal and vertical offsets
+     * @param diag Whether to include diagonal offsets
+     * @param filter Filter tested for each position, only matching positions are returned
+     * @return The offsets to adjacent coordinates
+     */
+    public int2[] adjPos(constInt2 xy, boolean self, boolean flat, boolean diag, CharPredicate filter) {
+        return adjPos(xy.x(), xy.y(), self, flat, diag, filter);
+    }
+
+    /**
+     * Returns all adjacent positions, excluding entries that would be out of bounds, and whose
+     * chars don't match the given filter.
+     *
+     * @param x The x coordinate where to query the adjacent coordinates
+     * @param y The y coordinate where to query the adjacent coordinates
+     * @param self Whether to include the offset [0,0]
+     * @param flat Whether to include horizontal and vertical offsets
+     * @param diag Whether to include diagonal offsets
+     * @param filter Filter tested for each position, only matching positions are returned
+     * @return The offsets to adjacent coordinates
+     */
+    public int2[] adjPos(int x, int y, boolean self, boolean flat, boolean diag, CharPredicate filter) {
+        int max = (self?1:0) + (flat?4:0) + (diag?4:0);
+        int2[] adj = new int2[max];
+        int i = 0;
+        if(y > 0) {
+            if(diag && x > 0 && filter.test(grid[y-1][x-1]))
+                adj[i++] = new int2(x-1, y-1);
+            if(flat && filter.test(grid[y-1][x]))
+                adj[i++] = new int2(x, y-1);
+            if(diag && x+1 < width && filter.test(grid[y-1][x+1]))
+                adj[i++] = new int2(x+1, y-1);
+        }
+        if(flat && x > 0 && filter.test(grid[y][x-1]))
+            adj[i++] = new int2(y-1, y);
+        if(self && filter.test(grid[y][x]))
+            adj[i++] = new int2(x,y);
+        if(flat && x+1 < width && filter.test(grid[y][x+1]))
+            adj[i++] = new int2(x+1, y);
+        if(y+1 < height) {
+            if(diag && x > 0 && filter.test(grid[y+1][x-1]))
+                adj[i++] = new int2(x-1, y+1);
+            if(flat && filter.test(grid[y+1][x]))
+                adj[i++] = new int2(x, y+1);
+            if(diag && x+1 < width && filter.test(grid[y+1][x+1]))
+                adj[i++] = new int2(x+1, y+1);
         }
         return i < max ? Arrays.copyOf(adj, i) : adj;
     }
