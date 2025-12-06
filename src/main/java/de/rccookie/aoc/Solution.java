@@ -11,9 +11,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.time.Month;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.IntSummaryStatistics;
 import java.util.List;
 import java.util.Locale;
@@ -22,7 +24,6 @@ import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
-import java.util.TimeZone;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
@@ -92,9 +93,9 @@ import org.jetbrains.annotations.Range;
 public abstract class Solution {
 
     /**
-     * Calendar in the time zone that is being used for puzzle releases.
+     * The time zone that is being used for puzzle releases.
      */
-    static final Calendar CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("EST"));
+    static final ZoneId TIMEZONE = ZoneId.of("America/Toronto");
 
 
     /**
@@ -416,13 +417,17 @@ public abstract class Solution {
         if(repeats < 1)
             throw new InvalidInputException("Repeat count < 1");
         if(warmup < 0)
-            throw new Solution.InvalidInputException("Warmup count < 0");
+            throw new InvalidInputException("Warmup count < 0");
 
         // Get date of puzzle if not already given
-        if(day <= 0)
-            day = CALENDAR.get(Calendar.DAY_OF_MONTH);
+        LocalDateTime now = LocalDateTime.now(TIMEZONE);
+        if(day <= 0) {
+            if(now.getMonth() != Month.DECEMBER)
+                throw new InvalidInputException("Day of month is required; it is not december");
+            day = now.getDayOfMonth();
+        }
         if(year <= 0)
-            year = CALENDAR.get(Calendar.YEAR);
+            year = now.getYear();
 
         // Create instances of solutions and initialize
         Solution[] solutions = new Solution[day * 2];
@@ -580,10 +585,14 @@ public abstract class Solution {
             throw new Solution.InvalidInputException("Warmup count < 0");
 
         // Get date of puzzle if not already given
-        if(day <= 0)
-            day = CALENDAR.get(Calendar.DAY_OF_MONTH);
+        LocalDateTime now = LocalDateTime.now(TIMEZONE);
+        if(day <= 0) {
+            if(now.getMonth() != Month.DECEMBER)
+                throw new InvalidInputException("Day of month is required; it is not december");
+            day = now.getDayOfMonth();
+        }
         if(year <= 0)
-            year = CALENDAR.get(Calendar.YEAR);
+            year = now.getYear();
 
         // Create instance of solution
         Solution solution = createInstance(type);
@@ -609,7 +618,7 @@ public abstract class Solution {
         if(inputStats)
             Console.log(solution.getInputStats());
 
-        Console.log("Running puzzle {}{}", day, year != CALENDAR.get(Calendar.YEAR) ? " from year "+year : "");
+        Console.log("Running puzzle {}{}", day, year != now.getYear() ? " from year "+year : "");
 
         // Actually execute the task
         Object resultObj;
@@ -735,10 +744,14 @@ public abstract class Solution {
      */
     private static String run(String classPattern, int task, int day, int year, String token, boolean exampleInput, int warmup, int repeatCount, boolean inputStats) throws InvalidInputException {
         // Get date if not given to resolve class
-        if(day <= 0)
-            day = CALENDAR.get(Calendar.DAY_OF_MONTH);
+        LocalDateTime now = LocalDateTime.now(TIMEZONE);
+        if(day <= 0) {
+            if(now.getMonth() != Month.DECEMBER)
+                throw new InvalidInputException("Day of month is required; it is not december");
+            day = now.getDayOfMonth();
+        }
         if(year <= 0)
-            year = CALENDAR.get(Calendar.YEAR);
+            year = now.getYear();
 
         // Run with the resolved class
         return run(resolveType(classPattern, day, year), task, day, year, token, exampleInput, warmup, repeatCount, inputStats);
