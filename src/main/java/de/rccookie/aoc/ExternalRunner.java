@@ -4,8 +4,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.IntSummaryStatistics;
 import java.util.stream.Stream;
 
@@ -46,10 +47,14 @@ public final class ExternalRunner {
             throw new Solution.InvalidInputException("Warmup count < 0");
 
         // Get date of puzzle if not already given
-        if(day <= 0)
-            day = Solution.CALENDAR.get(Calendar.DAY_OF_MONTH);
+        LocalDateTime now = LocalDateTime.now(Solution.TIMEZONE);
+        if(day <= 0) {
+            if(now.getMonth() != Month.DECEMBER)
+                throw new Solution.InvalidInputException("Day of month is required; it is not december");
+            day = now.getDayOfMonth();
+        }
         if(year <= 0)
-            year = Solution.CALENDAR.get(Calendar.YEAR);
+            year = now.getYear();
 
         for(int i=0; i<day; i++)
             if(i >= commands.length || commands[i] == null)
@@ -167,10 +172,14 @@ public final class ExternalRunner {
             throw new Solution.InvalidInputException("Invalid token, expected 128 characters");
 
         // Get date of puzzle if not already given
-        if(day <= 0)
-            day = Solution.CALENDAR.get(Calendar.DAY_OF_MONTH);
+        LocalDateTime now = LocalDateTime.now(Solution.TIMEZONE);
+        if(day <= 0) {
+            if(now.getMonth() != Month.DECEMBER)
+                throw new Solution.InvalidInputException("Day of month is required; it is not december");
+            day = now.getDayOfMonth();
+        }
         if(year <= 0)
-            year = Solution.CALENDAR.get(Calendar.YEAR);
+            year = now.getYear();
         int _day = day, _year = year;
 
         if(commands.length < day || commands[day-1] == null)
@@ -210,7 +219,7 @@ public final class ExternalRunner {
 
         if(inputStats)
             Console.log(getInputStats(input));
-        Console.log("Running task {} of puzzle {}{}", task, day, year != Solution.CALENDAR.get(Calendar.YEAR) ? " from year "+year : "");
+        Console.log("Running task {} of puzzle {}{}", task, day, year != now.getYear() ? " from year "+year : "");
 
         ProcessBuilder process = createProcess(commands[day-1], task, day, year, inputFile);
 
