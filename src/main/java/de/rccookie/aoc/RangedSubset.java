@@ -3,6 +3,7 @@ package de.rccookie.aoc;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 import java.util.Set;
@@ -401,7 +402,8 @@ final class RangedSubset implements RangedSet {
 
     @Override
     public Long last() {
-        return ranges().getLast()[1];
+        List<long[]> ranges = ranges();
+        return ranges.get(ranges.size() - 1)[1];
     }
 
     @Override
