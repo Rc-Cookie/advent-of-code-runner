@@ -28,6 +28,7 @@ import java.util.OptionalLong;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -53,6 +54,7 @@ import de.rccookie.util.text.Alignment;
 import de.rccookie.util.text.TableRenderer;
 import de.rccookie.xml.Node;
 import de.rccookie.xml.XML;
+import org.intellij.lang.annotations.Language;
 import org.intellij.lang.annotations.MagicConstant;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Range;
@@ -132,6 +134,12 @@ public abstract class Solution {
      */
     protected static final constInt2 DOWN = constInt2.Y;
 
+    /**
+     * The pattern used to split the input into sections; matches one or more whitespaces with
+     * only spaces in the lines.
+     */
+    private static final Pattern SECTION_DELIMITER = Pattern.compile("\\n\\s*\\n");
+
 
 
     /**
@@ -164,6 +172,10 @@ public abstract class Solution {
      * All the lines from the input string (without newlines).
      */
     protected String[] linesArr;
+    /**
+     * The input string split around blank lines.
+     */
+    protected String[] sections;
     /**
      * All the lines from the input string as char arrays (without newlines).
      */
@@ -232,6 +244,21 @@ public abstract class Solution {
     }
 
     /**
+     * Utility method which computes the sum over all lines from a specific section of the input,
+     * using the given function to compute a number for a given input line. Sections are separated
+     * by blank lines.
+     *
+     * @param section The index of the section to evaluate the lines of
+     * @param lineFunction A function which maps a value to each line, then those values will
+     *                     be summed up
+     * @return The sum of all return values of the function after being applied to each line,
+     *         in proper order
+     */
+    protected long sum(int section, ToLongFunction<String> lineFunction) {
+        return lines(section).mapToLong(lineFunction).sum();
+    }
+
+    /**
      * Evaluates the given predicate once for every element in the iterable and
      * returns the number of times it returned <code>true</code>.
      *
@@ -280,14 +307,38 @@ public abstract class Solution {
     }
 
     /**
+     * Returns a buffered {@link ListStream} containing each line of the given section of
+     * the input, where a sections are separated by blank lines.
+     *
+     * @param section The index of the section of whose lines to obtain
+     * @return The lines of that section
+     */
+    protected ListStream<String> lines(int section) {
+        return ListStream.of(sections[section].lines()).useAsList();
+    }
+
+    /**
      * Returns a buffered list stream over the result of splitting the input string
      * around the given regular expression (analogous to {@link String#split(String)}).
      *
      * @param regex The regular expression to split the string around
      * @return A list stream over the split parts of the input string
      */
-    protected ListStream<String> split(String regex) {
+    protected ListStream<String> split(@Language("regexp") String regex) {
         return ListStream.of(input.split(regex)).useAsList();
+    }
+
+    /**
+     * Returns a buffered list stream over the result of splitting a specific section
+     * of the input around the given regular expression (analogous to {@link String#split(String)}).
+     * Sections are separated by blank lines.
+     *
+     * @param section Index of the section that is to be split
+     * @param regex The regular expression to split the string around
+     * @return A list stream over the split parts of the specified input string section
+     */
+    protected ListStream<String> split(int section, @Language("regexp") String regex) {
+        return ListStream.of(sections[section].split(regex)).useAsList();
     }
 
     /**
@@ -395,6 +446,7 @@ public abstract class Solution {
         charList = new ArrayList<>(this.input.chars().mapToObj(c -> (char) c).toList());
         lines = ListStream.of(this.input.lines()).useAsList();
         linesArr = lines.toArray(String[]::new);
+        sections = SECTION_DELIMITER.split(this.input);
         //noinspection DataFlowIssue
         charTable = lines.map(String::toCharArray).toArray(char[][]::new);
         size = new constInt2(Mathf.max(linesArr, String::length), linesArr.length);
