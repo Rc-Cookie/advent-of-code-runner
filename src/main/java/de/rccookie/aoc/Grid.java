@@ -4,6 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -421,6 +422,36 @@ public final class Grid implements Iterable<int2> {
     }
 
     /**
+     * Sets the grid at all given coordinates to the specified value.
+     *
+     * @param xys The positions where to write the character
+     * @param c The character to write
+     * @return The number of grid cells modified
+     */
+    public int set(constInt2[] xys, char c) {
+        return set(Arrays.asList(xys), c);
+    }
+
+    /**
+     * Sets the grid at all given coordinates to the specified value.
+     *
+     * @param xys The positions where to write the character
+     * @param c The character to write
+     * @return The number of grid cells modified
+     */
+    public int set(Collection<? extends constInt2> xys, char c) {
+        int diff = 0;
+        for(constInt2 xy : xys) {
+            int x = xy.x(), y = xy.y();
+            if(grid[y][x] != c) {
+                grid[y][x] = c;
+                diff++;
+            }
+        }
+        return diff;
+    }
+
+                   /**
      * Returns the coordinates of the first occurrence of the given char in the grid.
      *
      * @param c The character to search for
