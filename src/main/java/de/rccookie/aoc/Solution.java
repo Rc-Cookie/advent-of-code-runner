@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.ZoneId;
@@ -134,14 +135,18 @@ public abstract class Solution {
 
 
     /**
-     * The raw input string, hidden from subclasses such that implementations
+     * The raw input data, hidden from subclasses such that implementations
      * can't modify it.
      */
-    private String originalInput;
+    private byte[] originalInput;
     /**
      * The raw input string.
      */
     protected String input;
+    /**
+     * The raw input data.
+     */
+    protected byte[] bytes;
     /**
      * All characters from the input string (including newlines).
      */
@@ -383,11 +388,12 @@ public abstract class Solution {
      *
      * @param input The raw input string
      */
-    protected void initInput(String input) {
-        this.input = input;
-        chars = input.toCharArray();
-        charList = new ArrayList<>(input.chars().mapToObj(c -> (char) c).toList());
-        lines = ListStream.of(input.lines()).useAsList();
+    public void initInput(byte[] input) {
+        bytes = input;
+        this.input = new String(input);
+        chars = this.input.toCharArray();
+        charList = new ArrayList<>(this.input.chars().mapToObj(c -> (char) c).toList());
+        lines = ListStream.of(this.input.lines()).useAsList();
         linesArr = lines.toArray(String[]::new);
         //noinspection DataFlowIssue
         charTable = lines.map(String::toCharArray).toArray(char[][]::new);
@@ -512,7 +518,7 @@ public abstract class Solution {
     private static Object runTask(Solution solution, int task, int warmup, int repeats, Stopwatch watch) {
         Object res = null;
         for(int i = 0; i < warmup + repeats; i++) {
-            solution.initInput(solution.originalInput);
+            solution.initInput(solution.originalInput.clone());
             solution.load();
             if(i >= warmup)
                 watch.start();
@@ -841,21 +847,13 @@ public abstract class Solution {
      * @param cacheFile The file to use as cache. May or may not already be present
      * @return The input for that puzzle for that user
      */
-    public static String getInput(int day, int year, String token, Path cacheFile) {
+    public static byte[] getInput(int day, int year, String token, Path cacheFile) {
         try {
             checkUserFile(cacheFile.toAbsolutePath().normalize().getParent(), token);
 
             // Does the input cache (still) exist?
-            if(Files.exists(cacheFile)) {
-                // If the user pasted some text, he may well have forgotten to include the final newline (which may break his own program).
-                // In this case we add the newline back.
-                String input = Files.readString(cacheFile);
-                if(!input.endsWith("\n")) {
-                    input += "\n";
-                    Files.writeString(cacheFile, input);
-                }
-                return input;
-            }
+            if(Files.exists(cacheFile))
+                return loadCachedInput(cacheFile);
 
             synchronized(Console.class) {
                 Console.log("Fetching input for day {}...", day);
@@ -869,7 +867,7 @@ public abstract class Solution {
                 throw new InvalidInputException("Puzzle "+day+" is not yet unlocked");
             // Store the input, so we don't have to load it every time
             Files.writeString(cacheFile, input);
-            return input;
+            return input.getBytes();
         } catch(IOException e) {
             throw Utils.rethrow(e);
         } catch(NoSuchAlgorithmException e) {
@@ -905,21 +903,13 @@ public abstract class Solution {
      * @param cacheFile The file to use as cache. May or may not already be present
      * @return The example input for that puzzle
      */
-    public static String getExampleInput(int day, int year, Path cacheFile) {
+    public static byte[] getExampleInput(int day, int year, Path cacheFile) {
         try {
             // No need to check for specific user - same for everyone
 
             // Does the input cache (still) exist?
-            if(Files.exists(cacheFile)) {
-                // If the user pasted some text, he may well have forgotten to include the final newline (which may break his own program).
-                // In this case we add the newline back.
-                String input = Files.readString(cacheFile);
-                if(!input.endsWith("\n")) {
-                    input += "\n";
-                    Files.writeString(cacheFile, input);
-                }
-                return input;
-            }
+            if(Files.exists(cacheFile))
+                return loadCachedInput(cacheFile);
 
             Console.log("Fetching example input...");
             Node article = HttpRequest.get("https://adventofcode.com/" + year + "/day/" + day)
@@ -949,10 +939,31 @@ public abstract class Solution {
             // Store the input, so we don't have to load it every time
             Files.createDirectories(cacheFile.toAbsolutePath().normalize().getParent());
             Files.writeString(cacheFile, input);
-            return input;
+            return input.getBytes();
         } catch(IOException|InterruptedException e) {
             throw Utils.rethrow(e);
         }
+    }
+
+    /**
+     * Loads the given (existing) input file. If the file does not end on a newline or contains \r
+     * characters, it will be normalized and the original file overridden. The returned input is always
+     * normalized.
+     *
+     * @param file The file from while to load the input
+     * @return The input data, normalized
+     */
+    private static byte[] loadCachedInput(Path file) throws IOException {
+        // If the user pasted some text, he may well have forgotten to include the final newline (which may break his own program).
+        // In this case we add the newline back.
+        String input = Files.readString(file);
+        if(!input.endsWith("\n") || input.contains("\r")) {
+            input = input.replace('\r', '\n');
+            if(!input.endsWith("\n"))
+                input += "\n";
+            Files.writeString(file, input);
+        }
+        return input.getBytes();
     }
 
     /**
@@ -1130,6 +1141,113 @@ public abstract class Solution {
 
 
     /**
+     * Creates a java source file which executes all the given solutions once directly after
+     * another, without the overhead of reflection and other "nice-to-haves" to produce a single
+     * executable which executes all days as fast as possible. The resulting file will contain
+     * a main method, and will handle loading input files (but not downloading or normalizing -
+     * the files should already be ready to go). It will also measure and log the time of each
+     * sub-task individually, together with the respective result.
+     *
+     * @param solutions The solution (tasks) to include in the benchmark, list may not be empty
+     * @param className The class name for the benchmark class. The class will be located in the
+     *                  package of the first class in the solutions list.
+     * @return The path to the created (or overridden) .java file
+     */
+    public static Path createBenchmark(List<BenchmarkSolution> solutions, String className) {
+        if(solutions.isEmpty())
+            throw new IllegalArgumentException("At least one solution is required");
+
+        String prefab;
+        try {
+            prefab = new String(Solution.class.getResourceAsStream("/Benchmark.java").readAllBytes());
+        } catch(IOException e) {
+            throw Utils.rethrow(e);
+        }
+
+        StringBuilder executions = new StringBuilder();
+
+        for(BenchmarkSolution s : solutions) {
+            executions.append("runSolution(new ").append(s.type.getCanonicalName())
+                    .append("(), ")
+                    .append(s.day)
+                    .append(", ")
+                    .append(s.year)
+                    .append(", ")
+                    .append(s.task)
+                    .append(");\n        ");
+        }
+
+        String pgk = solutions.get(0).type.getPackageName();
+        String java = prefab.replace("$package$", pgk).replace("$className$", className).replace("$executions$", executions);
+
+        Path file = Path.of("src/main/java" + (pgk.isBlank() ? "" : "/" + pgk.replace('.', '/'))).resolve(className+".java");
+        try {
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, java);
+        } catch(IOException e) {
+            throw Utils.rethrow(e);
+        }
+        return file;
+    }
+
+    /**
+     * Creates a java source file which executes all solutions for the given year found by the
+     * specified class pattern once, directly after another, without the overhead of reflection
+     * and other "nice-to-haves" to produce a single executable which executes all days as fast
+     * as possible. The resulting file will contain a main method, and will handle loading input
+     * files (but not downloading or normalizing - the files should already be ready to go). It
+     * will also measure and log the time of each sub-task individually, together with the
+     * respective result.
+     *
+     * @param classPattern The class pattern used to find solution classes to include in the benchmark
+     * @param year The year to use, will be used to populate the class pattern, or -1 for the
+     *             current year
+     * @return The path to the created (or overridden) .java file
+     */
+    public static Path createBenchmark(String classPattern, int year) {
+        if(year < 0)
+            year = LocalDate.now(TIMEZONE).getYear();
+
+        String prefab;
+        try {
+            prefab = new String(Solution.class.getResourceAsStream("/YearBenchmark.java").readAllBytes());
+        } catch(IOException e) {
+            throw Utils.rethrow(e);
+        }
+
+        String java = prefab.replace("$className$", "Benchmark").replace("$year$", year+"");
+
+        Class<? extends Solution> anySolution = null;
+        for(int day=1; day<=25; day++) {
+            try {
+                Class<? extends Solution> type = resolveType(classPattern, day, year);
+                if(anySolution == null)
+                    anySolution = type;
+                java = java.replace("$solution"+day+"$", "new "+type.getCanonicalName()+"()");
+                Console.log("Found day", day);
+            } catch(Exception e) {
+                java = java.replace("$solution"+day+"$", "null");
+//                Console.warn("Day", day, "not found:", e.toString());
+            }
+        }
+
+        if(anySolution == null)
+            throw new IllegalArgumentException("0 solutions found matching class pattern");
+        String pgk = anySolution.getPackageName();
+        java = java.replace("$package$", pgk);
+
+        Path file = Path.of("src/main/java" + (pgk.isBlank() ? "" : "/" + pgk.replace('.', '/'))).resolve("Benchmark.java");
+        try {
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, java);
+        } catch(IOException e) {
+            throw Utils.rethrow(e);
+        }
+        return file;
+    }
+
+
+    /**
      * Creates an args parser with all the parameters in common for java and external program execution.
      *
      * @return A partially configured args parser
@@ -1206,12 +1324,16 @@ public abstract class Solution {
 
                         Usage: aoc-run [options]""");
         parser.addOption('p', "classPattern", true, "Overrides config; fully qualified name pattern of your solution class, where {day}, {0_day}, {year} and {full_year} will be replaced with the day of month, the day of month padded with a 0 if needed, the last two digits of the year or the full year number, respectively.");
+        parser.addOption(null, "createBenchmark", false, "Create a Benchmark.java file which statically performs runs all solution. Use --year to override the year.");
         Options options = parser.parse(args);
 
         try {
             Config config = parseConfig(options, Config.class, "/defaultJavaConfig.json");
 
-            if(config.all)
+            if(options.is("createBenchmark")) {
+                Console.log("Created", createBenchmark(config.classPattern, config.year));
+            }
+            else if(config.all)
                 runAll(config.classPattern, config.day, config.year, config.tokenValue(), config.warmup, config.repeat, config.checkAll);
             else run(config.classPattern, config.task, config.day, config.year, config.tokenValue(), config.example, config.warmup, config.repeat, config.inputStats);
         } catch(InvalidInputException e) {
@@ -1277,6 +1399,20 @@ public abstract class Solution {
                 throw new InvalidInputException("'classPattern' field missing in config file, which should be the fully qualified name pattern of your solution classes. See README.md for more info on patterns.");
             return classPattern;
         }
+    }
+
+    /**
+     * Defines a benchmarking target.
+     *
+     * @param type The solution class to execute. Must have a public, parameterless constructor
+     * @param day The day of the puzzle
+     * @param year The year of the puzzle
+     * @param task 1 or 2, depending on which sub-task to execute
+     */
+    public record BenchmarkSolution(Class<? extends Solution> type,
+                                    @Range(from = 1, to = 25) int day,
+                                    int year,
+                                    @Range(from = 1, to = 2) int task) {
     }
 
     /**

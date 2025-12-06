@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.util.Arrays;
@@ -207,7 +208,7 @@ public final class ExternalRunner {
 
         // Read input file or fetch from website and store
         Path inputFile;
-        String input;
+        byte[] input;
         if(exampleInput) {
             inputFile = Path.of("input", year+"", "examples", day+".txt");
             input = Solution.getExampleInput(day, year, inputFile);
@@ -218,8 +219,8 @@ public final class ExternalRunner {
         }
 
         if(inputStats)
-            Console.log(getInputStats(input));
-        Console.log("Running task {} of puzzle {}{}", task, day, year != now.getYear() ? " from year "+year : "");
+            Console.log(getInputStats(new String(input)));
+        Console.log("Running task {} of puzzle {}{}", task, day, year != LocalDate.now(Solution.TIMEZONE).getYear() ? " from year " + year : "");
 
         ProcessBuilder process = createProcess(commands[day-1], task, day, year, inputFile);
 
