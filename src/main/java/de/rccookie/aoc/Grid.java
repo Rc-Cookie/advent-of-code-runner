@@ -36,7 +36,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * A helper class for working with grid-shaped inputs in Advent of Code.
  */
-public final class Grid {
+public final class Grid implements Iterable<int2> {
 
     private final char[][] grid;
     /**
@@ -204,6 +204,41 @@ public final class Grid {
     public void setPadding(char padding, int intPadding) {
         this.padding = padding;
         this.intPadding = intPadding;
+    }
+
+    /**
+     * Returns an iterator over all positions in this grid.
+     */
+    @Override
+    public @NotNull Iterator<int2> iterator() {
+        return size.iterator();
+    }
+
+    /**
+     * Returns a stream over all positions in this grid.
+     */
+    public ListStream<int2> stream() {
+        return ListStream.of(size);
+    }
+
+    /**
+     * Returns a stream over all positions in this grid whose char fulfils the given requirement.
+     *
+     * @param filter The filter deciding whether a given position is included
+     * @return All positions whose character matches the filter
+     */
+    public ListStream<int2> stream(CharPredicate filter) {
+        return stream().filter(p -> filter.test(charAtRaw(p)));
+    }
+
+    /**
+     * Returns a stream over all positions of the given character.
+     *
+     * @param c The character to filter by
+     * @return All positions with the given character
+     */
+    public ListStream<int2> stream(char c) {
+        return stream().filter(p -> charAtRaw(p) == c);
     }
 
     /**
