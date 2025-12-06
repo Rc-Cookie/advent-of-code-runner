@@ -745,6 +745,20 @@ public final class Grid {
     }
 
     /**
+     * Returns the sum of applying the given function to each character in the grid
+     * (once for every occurrence of a character).
+     *
+     * @param charValue The function to determine the value of a given char
+     * @return The sum of all evaluations
+     */
+    public long sumChars(CharToLongFunction charValue) {
+        long sum = 0;
+        for(char[] row : grid) for(char c : row)
+            sum += charValue.apply(c);
+        return sum;
+    }
+
+    /**
      * Returns the product of applying the given function to each coordinate in the grid.
      *
      * @param positionValue The function to determine the value for a single position
@@ -754,6 +768,24 @@ public final class Grid {
         long product = 1;
         for(int2 p : size)
             product *= positionValue.applyAsLong(p);
+        return product;
+    }
+
+    /**
+     * Returns the product of applying the given function to each character in the grid
+     * (once for every occurrence of a character).
+     *
+     * @param charValue The function to determine the value of a given char
+     * @return The product of all evaluations
+     */
+    public long productChars(CharToLongFunction charValue) {
+        long product = 1;
+        for(char[] row : grid) {
+            if(product == 0)
+                return 0;
+            for(char c : row)
+                product *= charValue.apply(c);
+        }
         return product;
     }
 
@@ -2099,5 +2131,9 @@ public final class Grid {
 
     public interface BiCharPredicate {
         boolean test(char a, char b);
+    }
+
+    public interface CharToLongFunction {
+        long apply(char c);
     }
 }
