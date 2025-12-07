@@ -44,9 +44,11 @@ import de.rccookie.math.Mathf;
 import de.rccookie.math.constInt2;
 import de.rccookie.math.int2;
 import de.rccookie.math.int3;
+import de.rccookie.math.int4;
 import de.rccookie.math.intN;
 import de.rccookie.util.ArgsParser;
 import de.rccookie.util.ArgumentOutOfRangeException;
+import de.rccookie.util.Arguments;
 import de.rccookie.util.Console;
 import de.rccookie.util.ListStream;
 import de.rccookie.util.Options;
@@ -350,6 +352,163 @@ public abstract class Solution {
     }
 
     /**
+     * Returns a buffered list stream over all numbers in the input string, ignoring any
+     * delimiters (according to {@link #parseLongs(String)}).
+     *
+     * @return All numbers from the input
+     * @see #parseLongs(String)
+     */
+    protected ListStream<Long> nums() {
+        return ListStream.of(toList(parseLongs(input)));
+    }
+
+    /**
+     * Returns a buffered list stream over all numbers in the given section, ignoring any
+     * delimiters (according to {@link #parseLongs(String)}).
+     *
+     * @return All numbers from the input
+     * @see #parseLongs(String)
+     * @see #sections
+     */
+    protected ListStream<Long> nums(int section) {
+        return ListStream.of(toList(parseLongs(sections[section])));
+    }
+
+    /**
+     * Extracts all numbers from the input string using {@link #parseLongs(String)} and groups
+     * them into pairs of 2. The input must contain an even number of numbers. The returned list
+     * stream is buffered.
+     *
+     * @return All numbers from the input in pairs
+     * @see #parseLongs(String)
+     */
+    protected ListStream<long[]> pairs() {
+        return tuples(input, 2);
+    }
+
+    /**
+     * Extracts all numbers from the specified section using {@link #parseLongs(String)} and groups
+     * them into pairs of 2. The input must contain an even number of numbers. The returned list
+     * stream is buffered.
+     *
+     * @param section The section to parse
+     * @return All numbers from the given section in pairs
+     * @see #parseLongs(String)
+     * @see #sections
+     */
+    protected ListStream<long[]> pairs(int section) {
+        return tuples(sections[section], 2);
+    }
+
+    /**
+     * Extracts all numbers from the input string using {@link #parseLongs(String)} and groups
+     * them into arrays of fixed length <code>size</code>. The input must contain a multiple of
+     * <code>size</code> numbers. The returned list stream is buffered.
+     *
+     * @param size The size by which to group the numbers, must be strictly positive
+     * @return All numbers from the input in groups of <code>size</code>
+     * @see #parseLongs(String)
+     */
+    protected ListStream<long[]> tuples(int size) {
+        return tuples(input, size);
+    }
+
+    /**
+     * Extracts all numbers from the specified section using {@link #parseLongs(String)} and groups
+     * them into arrays of fixed length <code>size</code>. The input must contain a multiple of
+     * <code>size</code> numbers. The returned list stream is buffered.
+     *
+     * @param section The section to parse
+     * @param size The size by which to group the numbers, must be strictly positive
+     * @return All numbers from the given section in groups of <code>size</code>
+     * @see #parseLongs(String)
+     * @see #sections
+     */
+    protected ListStream<long[]> tuples(int section, int size) {
+        return tuples(sections[section], size);
+    }
+
+    /**
+     * Extracts all numbers from the input string using {@link #parseInts(String)} and groups
+     * every 2 consecutive values into an {@link int2}. The input must contain an even number of
+     * numbers. The returned list stream is buffered.
+     *
+     * @return All numbers from the input in 2d vectors
+     * @see #parseInts(String)
+     */
+    protected ListStream<int2> vecs() {
+        return intTuples(input, 2).map(int2::fromArray).useAsList();
+    }
+
+    /**
+     * Extracts all numbers from the specified section using {@link #parseInts(String)} and groups
+     * every 2 consecutive values into an {@link int2}. The input must contain an even number of
+     * numbers. The returned list stream is buffered.
+     *
+     * @param section The section to parse
+     * @return All numbers from the given section in 2d vectors
+     * @see #parseInts(String)
+     * @see #sections
+     */
+    protected ListStream<int2> vecs(int section) {
+        return intTuples(sections[section], 2).map(int2::fromArray).useAsList();
+    }
+
+    /**
+     * Extracts all numbers from the input string using {@link #parseInts(String)} and groups
+     * every 3 consecutive values into an {@link int3}. The input must contain a multiple of 3 many
+     * numbers. The returned list stream is buffered.
+     *
+     * @return All numbers from the input grouped into 3d vectors
+     * @see #parseInts(String)
+     */
+    protected ListStream<int3> vec3s() {
+        return intTuples(input, 3).map(int3::fromArray).useAsList();
+    }
+
+    /**
+     * Extracts all numbers from the specified section using {@link #parseInts(String)} and groups
+     * every 4 consecutive values into an {@link int4}. The input must contain a multiple of 4 many
+     * numbers. The returned list stream is buffered.
+     *
+     * @param section The section to parse
+     * @return All numbers from the specified section grouped into 4d vectors
+     * @see #parseInts(String)
+     * @see #sections
+     */
+    protected ListStream<int4> vec4s(int section) {
+        return intTuples(sections[section], 4).map(int4::fromArray).useAsList();
+    }
+
+    /**
+     * Extracts all numbers from the input string using {@link #parseInts(String)} and groups
+     * every 4 consecutive values into an {@link int4}. The input must contain a multiple of 4 many
+     * numbers. The returned list stream is buffered.
+     *
+     * @return All numbers from the input grouped into 4d vectors
+     * @see #parseInts(String)
+     */
+    protected ListStream<int4> vec4s() {
+        return intTuples(input, 4).map(int4::fromArray).useAsList();
+    }
+
+    /**
+     * Extracts all numbers from the specified section using {@link #parseInts(String)} and groups
+     * every 3 consecutive values into an {@link int3}. The input must contain a multiple of 3 many
+     * numbers. The returned list stream is buffered.
+     *
+     * @param section The section to parse
+     * @return All numbers from the specified section grouped into 3d vectors
+     * @see #parseInts(String)
+     * @see #sections
+     */
+    protected ListStream<int3> vec3s(int section) {
+        return intTuples(sections[section], 3).map(int3::fromArray).useAsList();
+    }
+
+
+
+    /**
      * Returns a buffered list stream where from each line the numbers were extracted into
      * an array using {@link #parseLongs(String)}.
      *
@@ -364,6 +523,7 @@ public abstract class Solution {
      * Returns a buffered list stream where from each line of the specified section the numbers
      * were extracted into an array using {@link #parseLongs(String)}.
      *
+     * @param section The section to parse
      * @return A list stream over all numbers in the given section, grouped by line
      * @see #parseLongs(String)
      * @see #sections
@@ -380,87 +540,30 @@ public abstract class Solution {
      * @see #parseLongs(String)
      */
     protected ListStream<List<Long>> lists() {
-        return lines.map(Solution::parseLongs).map(arr -> {
-            List<Long> list = new ArrayList<>(arr.length);
-            for(long x : arr)
-                list.add(x);
-            return list;
-        }).useAsList();
+        return lines.map(Solution::parseLongs).map(Solution::toList).useAsList();
     }
 
     /**
      * Returns a buffered list stream where from each line of the specified section the numbers
      * were extracted into an {@link ArrayList} using {@link #parseLongs(String)}.
      *
+     * @param section The section to parse
      * @return A list stream over all numbers in the given section, grouped by line in (mutable) lists
      * @see #parseLongs(String)
      * @see #sections
      */
     protected ListStream<List<Long>> lists(int section) {
-        return lines0(section).map(Solution::parseLongs).map(arr -> {
-            List<Long> list = new ArrayList<>(arr.length);
-            for(long x : arr)
-                list.add(x);
-            return list;
-        }).useAsList();
+        return lines0(section).map(Solution::parseLongs).map(Solution::toList).useAsList();
     }
 
     /**
      * Returns a buffered list stream where from each line the numbers were extracted into
-     * an {@link int2} using {@link #parseLongs(String)}. Each line must contain exactly 2 numbers.
-     *
-     * @return A list stream over all 2d vectors in the input
-     * @see #parseLongs(String)
-     */
-    protected ListStream<int2> vecs() {
-        return lines.map(Solution::parseInts).map(int2::fromArray).useAsList();
-    }
-
-    /**
-     * Returns a buffered list stream where from each line of the specified section the numbers
-     * were extracted into an {@link int2} using {@link #parseLongs(String)}. Each line must
-     * contain exactly 2 numbers.
-     *
-     * @return A list stream over all 2d vectors in the given section
-     * @see #parseLongs(String)
-     * @see #sections
-     */
-    protected ListStream<int2> vecs(int section) {
-        return lines0(section).map(Solution::parseInts).map(int2::fromArray).useAsList();
-    }
-
-    /**
-     * Returns a buffered list stream where from each line the numbers were extracted into
-     * an {@link int3} using {@link #parseLongs(String)}. Each line must contain exactly 3 numbers.
-     *
-     * @return A list stream over all 3d vectors in the input
-     * @see #parseLongs(String)
-     */
-    protected ListStream<int3> vec3s() {
-        return lines.map(Solution::parseInts).map(int3::fromArray).useAsList();
-    }
-
-    /**
-     * Returns a buffered list stream where from each line of the specified section the numbers
-     * were extracted into an {@link int3} using {@link #parseLongs(String)}. Each line must
-     * contain exactly 3 numbers.
-     *
-     * @return A list stream over all 3d vectors in the given section
-     * @see #parseLongs(String)
-     * @see #sections
-     */
-    protected ListStream<int3> vec3s(int section) {
-        return lines0(section).map(Solution::parseInts).map(int3::fromArray).useAsList();
-    }
-
-    /**
-     * Returns a buffered list stream where from each line the numbers were extracted into
-     * an {@link intN} using {@link #parseLongs(String)}. Each line must contain at least 1
+     * an {@link intN} using {@link #parseInts(String)}. Each line must contain at least 1
      * number.
      *
      * @return A list stream over all vectors in the input, where the dimensions of the vector
      *         may vary from line to line
-     * @see #parseLongs(String)
+     * @see #parseInts(String)
      */
     protected ListStream<intN> vecNs() {
         return lines.map(Solution::parseInts).map(intN::ref).useAsList();
@@ -468,12 +571,13 @@ public abstract class Solution {
 
     /**
      * Returns a buffered list stream where from each line of the specified section the numbers
-     * were extracted into an {@link intN} using {@link #parseLongs(String)}. Each line must
+     * were extracted into an {@link intN} using {@link #parseInts(String)}. Each line must
      * contain at least 1 number.
      *
+     * @param section The section to parse
      * @return A list stream over all vectors in the given section, where the dimensions of the
      *         vector may vary from line to line
-     * @see #parseLongs(String)
+     * @see #parseInts(String)
      * @see #sections
      */
     protected ListStream<intN> vecNs(int section) {
@@ -777,6 +881,106 @@ public abstract class Solution {
                     Array.set(transpose[x], y, fill);
         }
         return transpose;
+    }
+
+    /**
+     * Creates a new {@link ArrayList} with the given values. The list is <i>not</i>
+     * backed by the array, i.e. modifications to either of them do not carry over.
+     *
+     * @param arr The values for the list
+     * @return A mutable list with those values
+     */
+    public static List<Long> toList(long... arr) {
+        List<Long> list = new ArrayList<>(arr.length);
+        for(long x : arr)
+            list.add(x);
+        return list;
+    }
+
+    /**
+     * Creates a new {@link ArrayList} with the given values. The list is <i>not</i>
+     * backed by the array, i.e. modifications to either of them do not carry over.
+     *
+     * @param arr The values for the list
+     * @return A mutable list with those values
+     */
+    public static List<Integer> toList(int... arr) {
+        List<Integer> list = new ArrayList<>(arr.length);
+        for(int x : arr)
+            list.add(x);
+        return list;
+    }
+
+    /**
+     * Creates a new {@link ArrayList} with the given values. The list is <i>not</i>
+     * backed by the array, i.e. modifications to either of them do not carry over.
+     *
+     * @param arr The values for the list
+     * @return A mutable list with those values
+     */
+    public static List<Boolean> toList(boolean... arr) {
+        List<Boolean> list = new ArrayList<>(arr.length);
+        for(boolean x : arr)
+            list.add(x);
+        return list;
+    }
+
+    /**
+     * Creates a new {@link ArrayList} with the given values. The list is <i>not</i>
+     * backed by the array, i.e. modifications to either of them do not carry over.
+     *
+     * @param arr The values for the list
+     * @return A mutable list with those values
+     */
+    public static List<Character> toList(char... arr) {
+        List<Character> list = new ArrayList<>(arr.length);
+        for(char x : arr)
+            list.add(x);
+        return list;
+    }
+
+    /**
+     * Extracts all numbers from the given string using {@link #parseLongs(String)} and groups
+     * them into arrays of fixed length <code>size</code>. The input must contain a multiple of
+     * <code>size</code> numbers. The returned list stream is buffered.
+     *
+     * @param string The input to extract the numbers from. The numbers may be separated by arbitrary
+     *               separators, including newlines; see {@link #parseLongs(String)} for more details
+     * @param size The size by which to group the numbers, must be strictly positive
+     * @return All numbers from the given string in groups of <code>size</code>
+     * @see #parseLongs(String)
+     */
+    public static ListStream<long[]> tuples(String string, int size) {
+        Arguments.checkRange(size, 1, null);
+        long[] values = parseLongs(string);
+        if(values.length % size != 0)
+            throw new IllegalArgumentException("Input cannot be evenly split into "+size+"-tuples");
+        List<long[]> tuples = new ArrayList<>(values.length / size);
+        for(int i=0; i<values.length; i+=size)
+            tuples.add(Arrays.copyOfRange(values, i, i + size));
+        return ListStream.of(tuples);
+    }
+
+    /**
+     * Extracts all numbers from the given string using {@link #parseInts(String)} and groups
+     * them into int-arrays of fixed length <code>size</code>. The input must contain a multiple of
+     * <code>size</code> numbers. The returned list stream is buffered.
+     *
+     * @param string The input to extract the numbers from. The numbers may be separated by arbitrary
+     *               separators, including newlines; see {@link #parseInts(String)} for more details
+     * @param size The size by which to group the numbers, must be strictly positive
+     * @return All numbers from the given string in groups of <code>size</code>
+     * @see #parseInts(String)
+     */
+    public static ListStream<int[]> intTuples(String string, int size) {
+        Arguments.checkRange(size, 1, null);
+        int[] values = parseInts(string);
+        if(values.length % size != 0)
+            throw new IllegalArgumentException("Input cannot be evenly split into "+size+"-tuples");
+        List<int[]> tuples = new ArrayList<>(values.length / size);
+        for(int i=0; i<values.length; i+=size)
+            tuples.add(Arrays.copyOfRange(values, i, i + size));
+        return ListStream.of(tuples);
     }
 
     //#endregion
