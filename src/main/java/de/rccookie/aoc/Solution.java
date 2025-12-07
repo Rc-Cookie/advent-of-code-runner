@@ -3,6 +3,7 @@ package de.rccookie.aoc;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URLEncoder;
@@ -42,6 +43,8 @@ import de.rccookie.json.JsonObject;
 import de.rccookie.math.Mathf;
 import de.rccookie.math.constInt2;
 import de.rccookie.math.int2;
+import de.rccookie.math.int3;
+import de.rccookie.math.intN;
 import de.rccookie.util.ArgsParser;
 import de.rccookie.util.ArgumentOutOfRangeException;
 import de.rccookie.util.Console;
@@ -141,6 +144,7 @@ public abstract class Solution {
     private static final Pattern SECTION_DELIMITER = Pattern.compile("\\n\\s*\\n");
 
 
+    //#region Input
 
     /**
      * The raw input data, hidden from subclasses such that implementations
@@ -314,7 +318,11 @@ public abstract class Solution {
      * @return The lines of that section
      */
     protected ListStream<String> lines(int section) {
-        return ListStream.of(sections[section].lines()).useAsList();
+        return lines0(section).useAsList();
+    }
+
+    private ListStream<String> lines0(int section) {
+        return ListStream.of(sections[section].lines());
     }
 
     /**
@@ -339,6 +347,137 @@ public abstract class Solution {
      */
     protected ListStream<String> split(int section, @Language("regexp") String regex) {
         return ListStream.of(sections[section].split(regex)).useAsList();
+    }
+
+    /**
+     * Returns a buffered list stream where from each line the numbers were extracted into
+     * an array using {@link #parseLongs(String)}.
+     *
+     * @return A list stream over all numbers in the input, grouped by line
+     * @see #parseLongs(String)
+     */
+    protected ListStream<long[]> arrays() {
+        return lines.map(Solution::parseLongs).useAsList();
+    }
+
+    /**
+     * Returns a buffered list stream where from each line of the specified section the numbers
+     * were extracted into an array using {@link #parseLongs(String)}.
+     *
+     * @return A list stream over all numbers in the given section, grouped by line
+     * @see #parseLongs(String)
+     * @see #sections
+     */
+    protected ListStream<long[]> arrays(int section) {
+        return lines0(section).map(Solution::parseLongs).useAsList();
+    }
+
+    /**
+     * Returns a buffered list stream where from each line the numbers were extracted into
+     * an {@link ArrayList} using {@link #parseLongs(String)}.
+     *
+     * @return A list stream over all numbers in the input, grouped by line in (mutable) lists
+     * @see #parseLongs(String)
+     */
+    protected ListStream<List<Long>> lists() {
+        return lines.map(Solution::parseLongs).map(arr -> {
+            List<Long> list = new ArrayList<>(arr.length);
+            for(long x : arr)
+                list.add(x);
+            return list;
+        }).useAsList();
+    }
+
+    /**
+     * Returns a buffered list stream where from each line of the specified section the numbers
+     * were extracted into an {@link ArrayList} using {@link #parseLongs(String)}.
+     *
+     * @return A list stream over all numbers in the given section, grouped by line in (mutable) lists
+     * @see #parseLongs(String)
+     * @see #sections
+     */
+    protected ListStream<List<Long>> lists(int section) {
+        return lines0(section).map(Solution::parseLongs).map(arr -> {
+            List<Long> list = new ArrayList<>(arr.length);
+            for(long x : arr)
+                list.add(x);
+            return list;
+        }).useAsList();
+    }
+
+    /**
+     * Returns a buffered list stream where from each line the numbers were extracted into
+     * an {@link int2} using {@link #parseLongs(String)}. Each line must contain exactly 2 numbers.
+     *
+     * @return A list stream over all 2d vectors in the input
+     * @see #parseLongs(String)
+     */
+    protected ListStream<int2> vecs() {
+        return lines.map(Solution::parseInts).map(int2::fromArray).useAsList();
+    }
+
+    /**
+     * Returns a buffered list stream where from each line of the specified section the numbers
+     * were extracted into an {@link int2} using {@link #parseLongs(String)}. Each line must
+     * contain exactly 2 numbers.
+     *
+     * @return A list stream over all 2d vectors in the given section
+     * @see #parseLongs(String)
+     * @see #sections
+     */
+    protected ListStream<int2> vecs(int section) {
+        return lines0(section).map(Solution::parseInts).map(int2::fromArray).useAsList();
+    }
+
+    /**
+     * Returns a buffered list stream where from each line the numbers were extracted into
+     * an {@link int3} using {@link #parseLongs(String)}. Each line must contain exactly 3 numbers.
+     *
+     * @return A list stream over all 3d vectors in the input
+     * @see #parseLongs(String)
+     */
+    protected ListStream<int3> vec3s() {
+        return lines.map(Solution::parseInts).map(int3::fromArray).useAsList();
+    }
+
+    /**
+     * Returns a buffered list stream where from each line of the specified section the numbers
+     * were extracted into an {@link int3} using {@link #parseLongs(String)}. Each line must
+     * contain exactly 3 numbers.
+     *
+     * @return A list stream over all 3d vectors in the given section
+     * @see #parseLongs(String)
+     * @see #sections
+     */
+    protected ListStream<int3> vec3s(int section) {
+        return lines0(section).map(Solution::parseInts).map(int3::fromArray).useAsList();
+    }
+
+    /**
+     * Returns a buffered list stream where from each line the numbers were extracted into
+     * an {@link intN} using {@link #parseLongs(String)}. Each line must contain at least 1
+     * number.
+     *
+     * @return A list stream over all vectors in the input, where the dimensions of the vector
+     *         may vary from line to line
+     * @see #parseLongs(String)
+     */
+    protected ListStream<intN> vecNs() {
+        return lines.map(Solution::parseInts).map(intN::ref).useAsList();
+    }
+
+    /**
+     * Returns a buffered list stream where from each line of the specified section the numbers
+     * were extracted into an {@link intN} using {@link #parseLongs(String)}. Each line must
+     * contain at least 1 number.
+     *
+     * @return A list stream over all vectors in the given section, where the dimensions of the
+     *         vector may vary from line to line
+     * @see #parseLongs(String)
+     * @see #sections
+     */
+    protected ListStream<intN> vecNs(int section) {
+        return lines0(section).map(Solution::parseInts).map(intN::ref).useAsList();
     }
 
     /**
@@ -404,23 +543,6 @@ public abstract class Solution {
     }
 
     /**
-     * Returns one of {@link #LEFT}, {@link #RIGHT}, {@link #UP} or {@link #DOWN} for
-     * the respective value of '&lt;', '>', '^' or 'v'.
-     *
-     * @param dir One of &lt;>^v
-     * @return The respective unit direction vector
-     */
-    protected static constInt2 directionVec(@MagicConstant(intValues = {'<', '>', '^', 'v'}) char dir) {
-        return switch(dir) {
-            case '<' -> LEFT;
-            case '>' -> RIGHT;
-            case '^' -> UP;
-            case 'v' -> DOWN;
-            default -> throw new IllegalArgumentException(Json.escape(dir)+" is not a valid direction (only one of <,>,^,v are allowed)");
-        };
-    }
-
-    /**
      * Return some statistics about the input data into the console. This function
      * may be modified to print custom statistics.
      */
@@ -453,6 +575,214 @@ public abstract class Solution {
         grid = new Grid(charTable);
     }
 
+
+    //#region Static utilities
+
+
+    /**
+     * An array, where at index i is the base-36 value of <code>(char) i</code> (both
+     * upper and lower case for each alphabetical letter), 0 elsewhere.
+     */
+    protected static final int[] CHAR_VALUE = new int[128];
+    /**
+     * An array, where at index i is the value <code>true</code> iff <code>(char) i</code>
+     * is a valid hexadecimal digit (allowing both lowercase and uppercase letters).
+     */
+    protected static final boolean[] IS_HEX = new boolean[128];
+    /**
+     * An array, where at index i is the value <code>10^i</code>, large enough to contain
+     * all non-overflowing results.
+     */
+    protected static final long[] POW10 = new long[(""+Long.MAX_VALUE).length()];
+    static {
+        for(int i=0; i<10; i++) {
+            CHAR_VALUE['0' + i] = i;
+            IS_HEX['0'+i] = true;
+        }
+        for(int i=0; i<26; i++) {
+            CHAR_VALUE['a' + i] = CHAR_VALUE['A' + i] = 10 + i;
+            IS_HEX['a'+i] = IS_HEX['A'+i] = i < 6;
+        }
+        POW10[0] = 1;
+        for(int i=1; i<POW10.length; i++)
+            POW10[i] = 10 * POW10[i-1];
+    }
+
+    /**
+     * Returns one of {@link #LEFT}, {@link #RIGHT}, {@link #UP} or {@link #DOWN} for
+     * the respective value of '&lt;', '>', '^' or 'v'.
+     *
+     * @param dir One of &lt;>^v
+     * @return The respective unit direction vector
+     */
+    protected static constInt2 directionVec(@MagicConstant(intValues = {'<', '>', '^', 'v'}) char dir) {
+        return switch(dir) {
+            case '<' -> LEFT;
+            case '>' -> RIGHT;
+            case '^' -> UP;
+            case 'v' -> DOWN;
+            default -> throw new IllegalArgumentException(Json.escape(dir)+" is not a valid direction (only one of <,>,^,v are allowed)");
+        };
+    }
+
+    /**
+     * Parses a list of integers with arbitrary delimiters (except '-' which is treated as minus symbol
+     * when directly in front, but not directly behind a number) into an array. Leading and trailing
+     * "stuff" will be ignored.
+     *
+     * @param str The string to parse the list from
+     * @return The list of integers
+     */
+    @SuppressWarnings("DuplicatedCode")
+    public static int[] parseInts(String str) {
+        int[] ints = new int[2];
+        int intsLen = 0;
+        int i = 0, x, len = str.length();
+        char c;
+        boolean minus;
+        outer: while(true) {
+            do if(i >= len) break outer;
+            while(((c = str.charAt(i++)) < '0' || c > '9') && c != '-');
+
+            //noinspection AssignmentUsedAsCondition
+            if(minus = c == '-') {
+                if(i >= len) break;
+                if((c = str.charAt(i++)) < '0' || c > '9') continue;
+            }
+
+            x = c - '0';
+            if(i < len) {
+                while((c = str.charAt(i)) >= '0' && c <= '9') {
+                    x = 10 * x + c - '0';
+                    if(++i >= len)
+                        break;
+                }
+            }
+            if(ints.length == intsLen)
+                ints = Arrays.copyOf(ints, intsLen << 1);
+            ints[intsLen++] = minus ? -x : x;
+            i++;
+        }
+        return ints.length == intsLen ? ints : Arrays.copyOf(ints, intsLen);
+    }
+
+    /**
+     * Parses a list of integers with arbitrary delimiters (except '-' which is treated as minus symbol
+     * when directly in front, but not directly behind a number) into an array using 64-bit signed integers.
+     * Leading and trailing "stuff" will be ignored.
+     *
+     * @param str The string to parse the list from
+     * @return The list of longs
+     */
+    @SuppressWarnings("DuplicatedCode")
+    public static long[] parseLongs(String str) {
+        long[] longs = new long[2];
+        int longsLen = 0;
+        int i = 0, len = str.length();
+        long x;
+        char c;
+        boolean minus;
+        outer: while(true) {
+            do if(i >= len) break outer;
+            while(((c = str.charAt(i++)) < '0' || c > '9') && c != '-');
+
+            //noinspection AssignmentUsedAsCondition
+            if(minus = c == '-') {
+                if(i >= len) break;
+                if((c = str.charAt(i++)) < '0' || c > '9') continue;
+            }
+
+            x = c - '0';
+            if(i < len) {
+                while((c = str.charAt(i)) >= '0' && c <= '9') {
+                    x = 10 * x + c - '0';
+                    if(++i >= len)
+                        break;
+                }
+            }
+            if(longs.length == longsLen)
+                longs = Arrays.copyOf(longs, longsLen << 1);
+            longs[longsLen++] = minus ? -x : x;
+            i++;
+        }
+        return longs.length == longsLen ? longs : Arrays.copyOf(longs, longsLen);
+    }
+
+    /**
+     * Returns <code>10^e</code>, throwing an exception on overflow or negative argument.
+     *
+     * @param e The exponent to raise to. Must be non-negative and less or equal to 19 (otherwise
+     *          an overflow would occur)
+     * @return 10 raised to the given power (1 if e is 0)
+     */
+    public static long pow10(int e) {
+        return POW10[e];
+    }
+
+    /**
+     * Returns <code>floor(log_10(x))</code>. For values less or equal to 0 the result is -1.
+     *
+     * @param x The value to compute the logarithm base 10 for.
+     * @return The greatest y such that pow10(y) <= x, or -1 if there is no such number (i.e. x <= 0)
+     */
+    public static int log10(long x) {
+        for(int i=0; i<POW10.length; i++)
+            if(x < POW10[i])
+                return i - 1;
+        return POW10.length;
+    }
+
+    /**
+     * Creates a new 2D array that is the transpose of the given 2D array, padded such that all rows
+     * have the same length, where missing values are set to the default value of the 2D-array's content
+     * type (i.e. <code>null</code> for objects, <code>false</code> for booleans, and <code>0</code>
+     * for all other primitives)
+     *
+     * @param array The array to transpose; not modified. Must be at least a 2D array (could be more)
+     * @return A 2-level deep copy of the array, transposed
+     * @param <T> An array type
+     * @apiNote The signature is not <code>T[][]</code> to allow for primitive arrays. An exception will
+     *          occur when passing a 1D array.
+     */
+
+    public static <T> T[] transpose(T[] array) {
+        return transpose(array, null);
+    }
+
+    /**
+     * Creates a new 2D array that is the transpose of the given 2D array, padded such that all rows
+     * have the same length, where missing values are set to the specified value.
+     *
+     * @param array The array to transpose; not modified. Must be at least a 2D array (could be more)
+     * @param fill The value to set missing cells to, or <code>null</code> for the type's default value
+     *             (i.e. <code>null</code> for objects, <code>false</code> for booleans, and <code>0</code>
+     *             for all other primitives)
+     * @return A 2-level deep copy of the array, transposed
+     * @param <T> An array type
+     * @apiNote The signature is not <code>T[][]</code> to allow for primitive arrays. An exception will
+     *          occur when passing a 1D array.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> T[] transpose(T[] array, Object fill) {
+        int width = Mathf.max(array, Array::getLength);
+        int height = array.length;
+
+        T[] transpose = (T[]) Array.newInstance(array.getClass().getComponentType().getComponentType(), width, height);
+        for(int y=0; y<height; y++) {
+            int l = Array.getLength(array[y]);
+            for(int x=0; x<l; x++)
+                Array.set(transpose[x], y, Array.get(array[y], x));
+            if(fill != null)
+                for(int x=l; x<width; x++)
+                    Array.set(transpose[x], y, fill);
+        }
+        return transpose;
+    }
+
+    //#endregion
+
+
+    //#region Execution
 
     /**
      * Runs all tasks of all days up to (and including) a specific day (only tasks from that year)
@@ -1492,4 +1822,6 @@ public abstract class Solution {
             super(message, cause, enableSuppression, writableStackTrace);
         }
     }
+
+    //#endregion
 }
