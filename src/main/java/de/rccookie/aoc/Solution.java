@@ -29,6 +29,7 @@ import java.util.OptionalLong;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -57,6 +58,7 @@ import de.rccookie.util.Utils;
 import de.rccookie.util.Wrapper;
 import de.rccookie.util.text.Alignment;
 import de.rccookie.util.text.TableRenderer;
+import de.rccookie.xml.Element;
 import de.rccookie.xml.Node;
 import de.rccookie.xml.XML;
 import org.intellij.lang.annotations.Language;
@@ -679,6 +681,8 @@ public abstract class Solution {
         grid = new Grid(charTable);
     }
 
+    //#endregion
+
 
     //#region Static utilities
 
@@ -1249,6 +1253,11 @@ public abstract class Solution {
     //#region Execution
 
     /**
+     * The default input cache directory, as a relative path.
+     */
+    static final Path INPUT_DIR = Path.of("input");
+
+    /**
      * Runs all tasks of all days up to (and including) a specific day (only tasks from that year)
      * and displays timing information.
      *
@@ -1302,10 +1311,10 @@ public abstract class Solution {
             solutions[2*i] = createInstance(type);
             solutions[2*i+1] = createInstance(type);
 
-            solutions[2*i].originalInput = solutions[2*i+1].originalInput = getInput(i+1, _year, token, Path.of("input", _year+"", (i+1)+".txt"));
+            solutions[2*i].originalInput = solutions[2*i+1].originalInput = getInput(i + 1, _year, token, INPUT_DIR);
 
             if(checkResults) {
-                String[] correct = getSolutions(i + 1, _year, token);
+                String[] correct = getSolutions(i + 1, _year, token, INPUT_DIR, 2);
                 System.arraycopy(correct, 0, correctSolutions, 2 * i, correct.length);
             }
         });
@@ -1451,9 +1460,10 @@ public abstract class Solution {
 
         // In the background, find which parts of the puzzle were already solved and get their solutions
         Wrapper<String[]> solutions = new Wrapper<>(null);
-        int _day = day, _year = year;
+        int _day = day, _year = year, _task = task;
         new Thread(() -> {
-            String[] s = getSolutions(_day, _year, token);
+            // If we auto-detect the desired task, we don't yet know which solution we need, so request both
+            String[] s = getSolutions(_day, _year, token, INPUT_DIR, _task == 1 ? 1 : 2);
             synchronized(solutions) {
                 solutions.value = s;
                 solutions.notifyAll();
@@ -1462,8 +1472,8 @@ public abstract class Solution {
 
         // Read input file or fetch from website and store
         if(exampleInput)
-            solution.originalInput = getExampleInput(day, year, Path.of("input", year+"", "examples", day+".txt"));
-        else solution.originalInput = getInput(day, year, token, Path.of("input", year+"", day+".txt"));
+            solution.originalInput = getExampleInput(day, year, INPUT_DIR);
+        else solution.originalInput = getInput(day, year, token, INPUT_DIR);
 
         // Initialize other fields
         solution.initInput(solution.originalInput);
@@ -1684,20 +1694,35 @@ public abstract class Solution {
     }
 
     /**
+     * Returns the path to the input file for a specific puzzle. The file may not exist
+     * and is not loaded by this method, this merely constructs the path where that file
+     * would be located.
+     *
+     * @param day The day of the puzzle to get the path for
+     * @param year The year of the puzzle to get the path for
+     * @param inputDir The root input directory
+     * @return The path to the input file for that puzzle
+     */
+    public static Path getInputFile(int day, int year, Path inputDir) {
+        return inputDir.resolve(year+"").resolve(day+".txt");
+    }
+
+    /**
      * Loads or reads the cache for the puzzle input for a specific puzzle
      * and for a specific user.
      *
      * @param day The day of the puzzle to get the input for
      * @param year The year of the puzzle to get the input for
      * @param token The token of the user to get the input for
-     * @param cacheFile The file to use as cache. May or may not already be present
+     * @param inputDir The root input directory
      * @return The input for that puzzle for that user
      */
-    public static byte[] getInput(int day, int year, String token, Path cacheFile) {
+    public static byte[] getInput(int day, int year, String token, Path inputDir) {
         try {
-            checkUserFile(cacheFile.toAbsolutePath().normalize().getParent(), token);
+            checkUserFile1(inputDir, token);
 
             // Does the input cache (still) exist?
+            Path cacheFile = getInputFile(day, year, inputDir);
             if(Files.exists(cacheFile))
                 return loadCachedInput(cacheFile);
 
@@ -1712,6 +1737,7 @@ public abstract class Solution {
             if(input.startsWith("Please don't repeatedly request this endpoint before it unlocks!"))
                 throw new InvalidInputException("Puzzle "+day+" is not yet unlocked");
             // Store the input, so we don't have to load it every time
+            Utils.createParentDirectories(cacheFile);
             Files.writeString(cacheFile, input);
             return input.getBytes();
         } catch(IOException e) {
@@ -1721,14 +1747,41 @@ public abstract class Solution {
         }
     }
 
-    private static synchronized void checkUserFile(Path dir, String token) throws IOException, NoSuchAlgorithmException {
+    /**
+     * Pattern to find "anonymous user #123" and extract the user number.
+     */
+    private static final Pattern USER_PATTERN = Pattern.compile("anonymous\\s+user\\s+(#\\w+)(?:\\W|$)", Pattern.CASE_INSENSITIVE);
+
+    private static synchronized void checkUserFile1(Path dir, String token) throws IOException, NoSuchAlgorithmException {
         // Keep a file with the hashed session token in the directory of the input files. If the
         // token changes, we have to reload the input files as the user may have changed.
         // Hash the token to prevent a user accidentally publishing their token to the public
         // by uploading the input folder.
         Path userFile = dir.resolve("user");
-        byte[] hash = MessageDigest.getInstance("SHA-256").digest(token.getBytes());
-        if(Files.exists(userFile) && !Arrays.equals(Files.readAllBytes(userFile), hash)) {
+        String tokenHash = Utils.toBase64(MessageDigest.getInstance("SHA-256").digest(token.getBytes()));
+        UserInfo user = null;
+        try {
+            user = Json.load(userFile).as(UserInfo.class);
+            if(user.tokenHash.equalsIgnoreCase(tokenHash))
+                return;
+        } catch(Exception ignored) { }
+
+        String username = HttpRequest.get("https://adventofcode.com/settings")
+                .addCookie("session", token)
+                .send()
+                .html()
+                .getElementsByTag("label")
+                .map(Element::text)
+                .map(USER_PATTERN::matcher)
+                .filter(Matcher::find)
+                .findFirst()
+                .orElseThrow(() -> new Solution.InvalidInputException("Token valid; could not determine user"))
+                .group(1);
+
+        // If the user just started using this framework or the token has expired, we don't want to delete
+        // the input; only if the username has changed
+        if(user != null && !user.user.equals(username)) {
+            Console.warn("User has changed, clearing input directory");
             // Delete all files in directory
             try(var files = Files.list(userFile.toAbsolutePath().normalize().getParent())) {
                 for(Path file : Utils.iterate(files.filter(Files::isRegularFile)))
@@ -1736,7 +1789,31 @@ public abstract class Solution {
             }
         }
         Files.createDirectories(dir);
-        Files.write(userFile, hash);
+        Json.store(new UserInfo(username, tokenHash), userFile, false);
+    }
+
+    /**
+     * Contents of the user cache file, to identity whose input and solutions are cached.
+     *
+     * @param user The anonymous name of the user
+     * @param tokenHash The last user token of that user, hashed with SHA-256 and encoded in base64.
+     *                  This is stored so that if the token has remained unchanged, we don't need to
+     *                  fetch the user's name every time.
+     */
+    private record UserInfo(@NotNull String user, @NotNull String tokenHash) { }
+
+    /**
+     * Returns the path to the example input file for a specific puzzle. The file may
+     * not exist and is not loaded by this method, this merely constructs the path where
+     * that file would be located.
+     *
+     * @param day The day of the puzzle to get the path for
+     * @param year The year of the puzzle to get the path for
+     * @param inputDir The root input directory
+     * @return The path to the example input file for that puzzle
+     */
+    public static Path getExampleInputFile(int day, int year, Path inputDir) {
+        return inputDir.resolve(year+"").resolve("examples").resolve(day+".txt");
     }
 
     /**
@@ -1746,14 +1823,15 @@ public abstract class Solution {
      *
      * @param day The day of the puzzle to get the example input for
      * @param year The year of the puzzle to get the example input for
-     * @param cacheFile The file to use as cache. May or may not already be present
+     * @param inputDir The root input directory
      * @return The example input for that puzzle
      */
-    public static byte[] getExampleInput(int day, int year, Path cacheFile) {
+    public static byte[] getExampleInput(int day, int year, Path inputDir) {
         try {
             // No need to check for specific user - same for everyone
 
             // Does the input cache (still) exist?
+            Path cacheFile = getExampleInputFile(day, year, inputDir);
             if(Files.exists(cacheFile))
                 return loadCachedInput(cacheFile);
 
@@ -1783,7 +1861,7 @@ public abstract class Solution {
             System.out.println(".");
 
             // Store the input, so we don't have to load it every time
-            Files.createDirectories(cacheFile.toAbsolutePath().normalize().getParent());
+            Utils.createParentDirectories(cacheFile);
             Files.writeString(cacheFile, input);
             return input.getBytes();
         } catch(IOException|InterruptedException e) {
@@ -1813,6 +1891,66 @@ public abstract class Solution {
     }
 
     /**
+     * Loads or reads the cached solutions to the puzzle which have already been revealed (because
+     * the user has already solved them). The returned array has one element per solved puzzle part.
+     * If nothing has been solved yet, or the puzzle is not yet unlocked, an empty array will be
+     * returned.
+     *
+     * @param day The day of the puzzle to get the solutions for
+     * @param year The year of the puzzle to get the solutions for
+     * @param token The session token used for authentication on adventofcode.com
+     * @param inputDir The root input directory
+     * @param tasks The highest task number of interest. For example, only the solution to task 1
+     *              might be cached, but if we are interested in that (i.e. tasks=1), there is no
+     *              need to check if the second solution has been revealed yet. However, if we are
+     *              checking against task 2 (i.e. tasks=2), we need to reload the cache.
+     * @return One element per known solution
+     */
+    public static String[] getSolutions(int day, int year, String token, Path inputDir, int tasks) {
+        try {
+            checkUserFile1(inputDir, token);
+
+            // Does the solution cache (still) exist?
+            Path cacheFile = inputDir.resolve(year+"").resolve("solutions").resolve(day+".txt");
+            if(Files.exists(cacheFile)) {
+                String[] solutions = loadCachedSolutions(cacheFile);
+                // Might have task 1 solution cached, but we are interested in solution of task 2
+                if(solutions.length >= tasks)
+                    return solutions;
+            }
+
+            String[] solutions = HttpRequest.get("https://adventofcode.com/"+year+"/day/"+day)
+                    .addCookie("session", token)
+                    .send()
+                    .html()
+                    .getElementsByTag("p")
+                    .filter(p -> p.text().contains("Your puzzle answer was"))
+                    .map(p -> p.getElementByTag("code").text())
+                    .toArray(String[]::new);
+            // Store the solutions, so we don't have to load it every time
+            Utils.createParentDirectories(cacheFile);
+            Files.writeString(cacheFile, String.join("\n", solutions) + "\n");
+            return solutions;
+        } catch(IOException e) {
+            throw Utils.rethrow(e);
+        } catch(NoSuchAlgorithmException e) {
+            throw new InvalidInputException("Why is SHA-256 not available on your system???", e);
+        }
+    }
+
+    /**
+     * Loads the given (existing) solution cache file.
+     *
+     * @param file The file from while to load the solutions
+     * @return The cached solutions
+     */
+    private static String[] loadCachedSolutions(Path file) throws IOException {
+        try(Stream<String> lines = Files.lines(file)) {
+            return lines.map(String::trim).filter(l -> !l.isEmpty()).toArray(String[]::new);
+        }
+    }
+
+    /**
      * Fetches the solutions to the puzzle which have already been revealed (because the user
      * has already solved them). The returned array has one element per solved puzzle part. If
      * nothing has been solved yet, or the puzzle is not yet unlocked, an empty array will be
@@ -1823,7 +1961,7 @@ public abstract class Solution {
      * @param token The session token used for authentication on adventofcode.com
      * @return One element per known solution
      */
-    public static String[] getSolutions(int day, int year, String token) {
+    public static String[] fetchSolutions(int day, int year, String token) {
         return HttpRequest.get("https://adventofcode.com/"+year+"/day/"+day)
                 .addCookie("session", token)
                 .send()

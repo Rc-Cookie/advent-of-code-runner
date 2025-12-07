@@ -73,14 +73,14 @@ public final class ExternalRunner {
                 .parallel()
                 .filter(i -> commands[i] != null)
                 .forEach(i ->  {
-            Path inputFile = Path.of("input", _year+"", (i+1)+".txt");
-            Solution.getInput(i+1, _year, token, inputFile);
+            Solution.getInput(i + 1, _year, token, Solution.INPUT_DIR);
+            Path inputFile = Solution.getInputFile(i+1, _year, Solution.INPUT_DIR);
 
             processes[2*i] = createProcess(commands[i], 1, i+1, _year, inputFile);
             processes[2*i+1] = createProcess(commands[i], 2, i+1, _year, inputFile);
 
             if(checkResults) {
-                String[] correct = Solution.getSolutions(i + 1, _year, token);
+                String[] correct = Solution.getSolutions(i + 1, _year, token, Solution.INPUT_DIR, 2);
                 System.arraycopy(correct, 0, correctSolutions, 2 * i, correct.length);
             }
         });
@@ -181,7 +181,7 @@ public final class ExternalRunner {
         }
         if(year <= 0)
             year = now.getYear();
-        int _day = day, _year = year;
+        int _day = day, _year = year, _task = task;
 
         if(commands.length < day || commands[day-1] == null)
             throw new Solution.InvalidInputException("No command specified for day "+day);
@@ -190,7 +190,7 @@ public final class ExternalRunner {
         if(task > 0) {
             // In the background, find which parts of the puzzle were already solved and get their solutions
             new Thread(() -> {
-                String[] s = Solution.getSolutions(_day, _year, token);
+                String[] s = Solution.getSolutions(_day, _year, token, Solution.INPUT_DIR, _task == 1 ? 1 : 2);
                 Console.mapDebug("Solutions", solutions.value);
                 synchronized(solutions) {
                     solutions.value = s;
@@ -201,7 +201,7 @@ public final class ExternalRunner {
         else {
             // We need to know which parts are already solved to find out which task to execute. Get the solutions
             // to them in the same request
-            solutions.value = Solution.getSolutions(day, year, token);
+            solutions.value = Solution.getSolutions(day, year, token, Solution.INPUT_DIR, 2);
             task = Math.min(2, solutions.value.length + 1);
             Console.mapDebug("Solutions", solutions.value);
         }
@@ -210,12 +210,12 @@ public final class ExternalRunner {
         Path inputFile;
         byte[] input;
         if(exampleInput) {
-            inputFile = Path.of("input", year+"", "examples", day+".txt");
-            input = Solution.getExampleInput(day, year, inputFile);
+            input = Solution.getExampleInput(day, year, Solution.INPUT_DIR);
+            inputFile = Solution.getExampleInputFile(day, year, Solution.INPUT_DIR);
         }
         else {
-            inputFile = Path.of("input", year+"", day+".txt");
-            input = Solution.getInput(day, year, token, inputFile);
+            input = Solution.getInput(day, year, token, Solution.INPUT_DIR);
+            inputFile = Solution.getInputFile(day, year, Solution.INPUT_DIR);
         }
 
         if(inputStats)
