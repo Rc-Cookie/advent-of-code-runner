@@ -685,7 +685,7 @@ public abstract class Solution {
 
     /**
      * An array, where at index i is the base-36 value of <code>(char) i</code> (both
-     * upper and lower case for each alphabetical letter), 0 elsewhere.
+     * upper and lower case for each alphabetical letter), -1 elsewhere.
      */
     protected static final int[] CHAR_VALUE = new int[128];
     /**
@@ -699,6 +699,7 @@ public abstract class Solution {
      */
     protected static final long[] POW10 = new long[(""+Long.MAX_VALUE).length()];
     static {
+        Arrays.fill(CHAR_VALUE, -1);
         for(int i=0; i<10; i++) {
             CHAR_VALUE['0' + i] = i;
             IS_HEX['0'+i] = true;
@@ -981,6 +982,265 @@ public abstract class Solution {
         for(int i=0; i<values.length; i+=size)
             tuples.add(Arrays.copyOfRange(values, i, i + size));
         return ListStream.of(tuples);
+    }
+
+    /**
+     * Reverses the given array in-place.
+     *
+     * @param arr The array whose contents are to be reversed
+     * @return The same array <code>arr</code>, now with its contents reversed
+     */
+    public static <T> T[] reverse(T[] arr) {
+        int mid = arr.length / 2;
+        T tmp;
+        for(int i=0; i<mid; i++) {
+            int j = arr.length - i - 1;
+            tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+        }
+        return arr;
+    }
+
+    /**
+     * Reverses the given array in-place.
+     *
+     * @param arr The array whose contents are to be reversed
+     * @return The same array <code>arr</code>, now with its contents reversed
+     */
+    public static int[] reverse(int[] arr) {
+        int mid = arr.length / 2;
+        int tmp;
+        for(int i=0; i<mid; i++) {
+            int j = arr.length - i - 1;
+            tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+        }
+        return arr;
+    }
+
+    /**
+     * Reverses the given array in-place.
+     *
+     * @param arr The array whose contents are to be reversed
+     * @return The same array <code>arr</code>, now with its contents reversed
+     */
+    public static long[] reverse(long[] arr) {
+        int mid = arr.length / 2;
+        long tmp;
+        for(int i=0; i<mid; i++) {
+            int j = arr.length - i - 1;
+            tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+        }
+        return arr;
+    }
+
+    /**
+     * Reverses the given array in-place.
+     *
+     * @param arr The array whose contents are to be reversed
+     * @return The same array <code>arr</code>, now with its contents reversed
+     */
+    public static char[] reverse(char[] arr) {
+        int mid = arr.length / 2;
+        char tmp;
+        for(int i=0; i<mid; i++) {
+            int j = arr.length - i - 1;
+            tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+        }
+        return arr;
+    }
+
+    /**
+     * Reverses the given array in-place.
+     *
+     * @param arr The array whose contents are to be reversed
+     * @return The same array <code>arr</code>, now with its contents reversed
+     */
+    public static boolean[] reverse(boolean[] arr) {
+        int mid = arr.length / 2;
+        boolean tmp;
+        for(int i=0; i<mid; i++) {
+            int j = arr.length - i - 1;
+            tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+        }
+        return arr;
+    }
+
+    /**
+     * Splits the given number into digits in base 10, where the first element of the
+     * array represents the most significant digit. For the number 0 an array with a
+     * single element 0 is returned. If the number is negative, a leading -1 will be
+     * added to the array.
+     *
+     * @param x The value to get the digits of
+     * @return The digits of the number in base 10, exactly like <code>digits(x+"")</code>
+     */
+    public static int[] digits(long x) {
+        if(x > 0) {
+            int[] digits = new int[log10(x) + 1];
+            for(int i=0; x>0; i++, x/=10)
+                digits[i] = (int) (x % 10);
+            return digits;
+        }
+        else if(x == 0)
+            return new int[] { 0 };
+        else {
+            int[] digits = new int[log10(x = -x) + 2];
+            digits[0] = -1;
+            for(int i=1; x>0; i++, x/=10)
+                digits[i] = (int) (x % 10);
+            return digits;
+        }
+    }
+
+    /**
+     * Splits the given number into digits in base 16, where the first element of the
+     * array represents the most significant digit. For the number 0 an array with a
+     * single element 0 is returned. If the number is negative, a leading -1 will be
+     * added to the array.
+     *
+     * @param x The value to get the digits of
+     * @return The digits of the number in hexadecimal, exactly like
+     *         <code>digits(Long.toHexString(x))</code>
+     */
+    public static int[] hexDigits(long x) {
+        if(x == 0)
+            return new int[] { 0 };
+
+        int off;
+        if(x > 0)
+            off = 0;
+        else {
+            off = 1;
+            x = -x;
+        }
+
+        int digitCount = off;
+        for(long l=x; l!=0; l>>=4)
+            digitCount++;
+
+        int[] digits = new int[digitCount];
+        digits[0] = -1;
+
+        for(int i=off; x>0; i++, x>>=4)
+            digits[i] = (int) (x & 0xF);
+        return digits;
+    }
+
+    /**
+     * Splits the given number into digits based on the given radix (base), where the
+     * first element of the array represents the most significant digit. For the number
+     * 0 an array with a single element 0 is returned. If the number is negative, a
+     * leading -1 will be added to the array.
+     *
+     * @param x The value to get the digits of
+     * @param radix The base of the number system in which to get the digits (e.g. 16
+     *              for hexadecimal). Must be strictly positive, but can be arbitrarily
+     *              large.
+     * @return The digits of the number in the given radix, exactly like
+     *         <code>digits(Long.toString(x, radix))</code> for sufficiently small radicies
+     */
+    public static int[] digits(long x, int radix) {
+        Arguments.checkRange(radix, 1, null);
+
+        if(x == 0)
+            return new int[] { 0 };
+        if(radix == 10)
+            return digits(x);
+
+        int digitCount = 0;
+        for(long l=x; l!=0; l/=radix)
+            digitCount++;
+
+        if(x > 0) {
+            int[] digits = new int[digitCount];
+            for(int i=0; x>0; i++, x/=radix)
+                digits[i] = (int) (x % radix);
+            return digits;
+        }
+        else {
+            x = -x;
+            int[] digits = new int[digitCount + 1];
+            digits[0] = -1;
+            for(int i=1; x>0; i++, x/=radix)
+                digits[i] = (int) (x % radix);
+            return digits;
+        }
+    }
+
+    /**
+     * Returns the digit values of each character in the given string from left to right,
+     * up to base 36 (i.e. 0-9 and a-z or A-Z). Other characters (including minus symbols)
+     * will result in a digit value of -1.
+     *
+     * @param number The string to convert to a digit array
+     * @return An array with the length of the string, with each index corresponding to the
+     *         string's numeric character value
+     */
+    public static int[] digits(String number) {
+        int len = number.length();
+        int[] digits = new int[len];
+        for(int i=0; i<len; i++)
+            digits[i] = CHAR_VALUE[number.charAt(i)];
+        return digits;
+    }
+
+    /**
+     * Converts the given array of digits starting with the most significant digit to a
+     * number a using base 10. The first digit may be -1, indicating that the number is
+     * negative and the digits begin at index 1 (i.e. compatible with {@link #digits(long)}).
+     * If the array is empty, 0 is returned.
+     *
+     * @param digits The digits. All values must be between 0 and 9, except the first digit,
+     *               which might be -1.
+     * @return The digits converted to a number
+     */
+    public static long fromDigits(int[] digits) {
+        return fromDigitsWithBase(10, digits);
+    }
+
+    /**
+     * Converts the given array of digits starting with the most significant digit to a
+     * number a using base 16. The first digit may be -1, indicating that the number is
+     * negative and the digits begin at index 1 (i.e. compatible with {@link #hexDigits(long)}).
+     * If the array is empty, 0 is returned.
+     *
+     * @param digits The digits. All values must be between 0 and 15, except the first digit,
+     *               which might be -1.
+     * @return The digits converted to a number
+     */
+    public static long fromHexDigits(int[] digits) {
+        return fromDigitsWithBase(16, digits);
+    }
+
+    /**
+     * Converts the given array of digits starting with the most significant digit to a
+     * number a using the specified base. The first digit may be -1, indicating that the
+     * number is negative and the digits begin at index 1 (i.e. compatible with {@link #digits(long,int)}).
+     * If the array is empty, 0 is returned.
+     *
+     * @param radix The base to interprete the digits as
+     * @param digits The digits. All values must be between 0 (inclusive) and <code>radix</code>
+     *               (exclusive), except the first digit, which might be -1.
+     * @return The digits converted to a number
+     */
+    public static long fromDigitsWithBase(int radix, int... digits) {
+        if(digits.length == 0)
+            return 0;
+        boolean neg = digits[0] < 0;
+        int end = neg ? 1 : 0;
+        long x = 0;
+        for(int i=digits.length-1; i>=end; i--)
+            x = radix * x + digits[i];
+        return neg ? -x : x;
     }
 
     //#endregion
