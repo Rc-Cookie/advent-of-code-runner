@@ -30,7 +30,7 @@ public final class ExternalRunner {
     private static String getInputStats(String input) {
         IntSummaryStatistics lengths = input.lines().mapToInt(String::length).filter(i -> i != 0).summaryStatistics();
         return "Input statistics: Lines: "+input.lines().count()
-               +" | Chars: "+input.toCharArray().length+" ("+input.chars().filter(c -> !Character.isWhitespace(c)).count()+" non-empty)"
+               +" | Chars: "+input.length()+" ("+input.chars().filter(c -> !Character.isWhitespace(c)).count()+" non-empty)"
                +" | Blank lines: "+input.lines().filter(String::isBlank).count()
                +" | Line lengths: "+lengths.getMin()+(lengths.getMin() == lengths.getMax() ? "" : " - "+lengths.getMax());
     }
@@ -264,7 +264,7 @@ public final class ExternalRunner {
             // null, blank string or long output won't be the solution, so just exit
             return result;
 
-        return Solution.maybeSubmit(task, day, year, token, solutions, result, t -> run(commands, t, _day, _year, token, exampleInput, warmup, repeatCount, false));
+        return Solution.maybeSubmit(task, day, year, token, solutions, result, t -> run(commands, t, _day, _year, token, false, warmup, repeatCount, false));
     }
 
     private static ProcessBuilder createProcess(String cmdTemplate, int task, int day, int year, Path inputFile) {
@@ -336,7 +336,7 @@ public final class ExternalRunner {
     /**
      * Represents the config file for an external program.
      */
-    private record Config(@Default(value = "token.txt", string = true) Path token,
+    private record Config(@Default(value = "\"token.txt\"") Path token,
                           String tokenValue,
                           Commands command,
                           @Default("true") boolean inputStats,

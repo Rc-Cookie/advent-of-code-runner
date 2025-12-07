@@ -113,7 +113,7 @@ public abstract class Solution {
      */
     protected static final constInt2[] DIAGONALS = { int2.minusOne, new constInt2(1,-1), new constInt2(-1,1), int2.one };
     /**
-     * The vector constants between [-1,-1] and [1,1] (inclusive), exluding [0,0].
+     * The vector constants between [-1,-1] and [1,1] (inclusive), excluding [0,0].
      */
     protected static final constInt2[] ADJ8 = {
             int2.minusOne, new constInt2(0,-1), new constInt2(1,-1),
@@ -1540,8 +1540,9 @@ public abstract class Solution {
             throw new IllegalArgumentException("At least one solution is required");
 
         String prefab;
-        try {
-            prefab = new String(Solution.class.getResourceAsStream("/Benchmark.java").readAllBytes());
+        try(InputStream in = Solution.class.getResourceAsStream("/Benchmark.java")) {
+            assert in != null;
+            prefab = new String(in.readAllBytes());
         } catch(IOException e) {
             throw Utils.rethrow(e);
         }
@@ -1591,8 +1592,9 @@ public abstract class Solution {
             year = LocalDate.now(TIMEZONE).getYear();
 
         String prefab;
-        try {
-            prefab = new String(Solution.class.getResourceAsStream("/YearBenchmark.java").readAllBytes());
+        try(InputStream in = Solution.class.getResourceAsStream("/YearBenchmark.java")) {
+            assert in != null;
+            prefab = new String(in.readAllBytes());
         } catch(IOException e) {
             throw Utils.rethrow(e);
         }
@@ -1741,7 +1743,7 @@ public abstract class Solution {
     /**
      * Represents the config file.
      */
-    private record Config(@Default(value = "token.txt", string = true) Path token,
+    private record Config(@Default(value = "\"token.txt\"") Path token,
                           String tokenValue,
                           String classPattern,
                           @Default("true") boolean inputStats,
