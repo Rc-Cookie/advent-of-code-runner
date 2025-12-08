@@ -199,6 +199,13 @@ public abstract class Solution {
      */
     protected Grid grid;
 
+    /**
+     * Whether the input is example input. For some puzzles, the "magic numbers"
+     * are different for the example input; in those cases, the alternative value
+     * can be selected depending on this field.
+     */
+    protected boolean example;
+
 
     /**
      * Loads common things the solution may need for both of the tasks.
@@ -1311,6 +1318,7 @@ public abstract class Solution {
             solutions[2*i] = createInstance(type);
             solutions[2*i+1] = createInstance(type);
 
+            solutions[2*i].example = solutions[2*i+1].example = false;
             solutions[2*i].originalInput = solutions[2*i+1].originalInput = getInput(i + 1, _year, token, INPUT_DIR);
 
             if(checkResults) {
@@ -1457,6 +1465,7 @@ public abstract class Solution {
 
         // Create instance of solution
         Solution solution = createInstance(type);
+        solution.example = exampleInput;
 
         // In the background, find which parts of the puzzle were already solved and get their solutions
         Wrapper<String[]> solutions = new Wrapper<>(null);
